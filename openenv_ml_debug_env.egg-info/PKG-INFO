@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: openenv-ml_debug_env
+Version: 0.1.0
+Summary: Ml Debug Env environment for OpenEnv
+Requires-Python: >=3.10
+Requires-Dist: gitpython>=3.1.46
+Requires-Dist: huggingface-hub[cli]>=1.8.0
+Requires-Dist: openai>=2.29.0
+Requires-Dist: openenv-core[core]>=0.2.1
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"

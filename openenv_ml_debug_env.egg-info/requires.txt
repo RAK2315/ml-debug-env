@@ -1,0 +1,8 @@
+gitpython>=3.1.46
+huggingface-hub[cli]>=1.8.0
+openai>=2.29.0
+openenv-core[core]>=0.2.1
+
+[dev]
+pytest>=8.0.0
+pytest-cov>=4.0.0

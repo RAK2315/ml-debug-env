@@ -1,0 +1,19 @@
+spec_version: 1
+name: ml-debug-env
+version: 1.0.0
+description: >
+  RL environment where agents debug broken PyTorch training scripts.
+  Three tasks of increasing difficulty — shape mismatch (easy),
+  training collapse (medium), and silent data leakage (hard).
+  The grader executes the agent's fixed code in an isolated subprocess
+  and scores 0.0–1.0 with partial credit at each verification stage.
+author: rehaan
+type: space
+runtime: fastapi
+app: server.app:app
+port: 8000
+tags:
+  - openenv
+  - pytorch
+  - debugging
+  - reinforcement-learning

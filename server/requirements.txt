@@ -1,0 +1,20 @@
+# Core OpenEnv runtime — install from GitHub (latest stable)
+git+https://github.com/meta-pytorch/OpenEnv.git#subdirectory=src
+
+# FastAPI stack
+fastapi>=0.115.0
+uvicorn[standard]>=0.24.0
+python-multipart
+aiofiles
+
+# LLM client (Groq via OpenAI-compatible SDK)
+openai>=1.0.0
+
+# ML / data
+# torch is installed separately via CPU wheel to keep image size small:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Include here so pip freeze is complete:
+torch>=2.0.0
+
+# Validation
+pydantic>=2.0
