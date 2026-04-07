@@ -1,28 +1,59 @@
 # inference.py
-# Hackathon required baseline inference script.
-# Runs the Groq-based baseline agent against all 3 tasks.
-# Usage: python inference.py
+# Hackathon Phase 2 baseline inference script.
+# Hits the deployed HF Space /baseline endpoint directly.
+# Falls back to local server if HF Space is unreachable.
 
 import os
 import sys
+import json
+import urllib.request
+import urllib.error
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
+HF_SPACE_URL = "https://rak2315-ml-debug-env.hf.space"
+LOCAL_URL = "http://localhost:8000"
 
-from baseline_inference import run_baseline_on_all_tasks
 
-if __name__ == "__main__":
-    api_key = os.environ.get("GROQ_API_KEY", "")
-    if not api_key:
-        print("ERROR: GROQ_API_KEY environment variable not set.")
+def hit_baseline(base_url: str, timeout: int = 120) -> dict:
+    url = f"{base_url}/baseline"
+    req = urllib.request.Request(url, method="GET")
+    req.add_header("Accept", "application/json")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode())
+
+
+def main():
+    for base_url in [HF_SPACE_URL, LOCAL_URL]:
+        try:
+            print(f"Connecting to {base_url}/baseline ...", flush=True)
+            data = hit_baseline(base_url)
+            break
+        except Exception as e:
+            print(f"  Could not reach {base_url}: {e}", flush=True)
+            data = None
+
+    if data is None:
+        print("ERROR: Could not reach any server endpoint.", file=sys.stderr)
         sys.exit(1)
 
-    print("Running baseline inference on all 3 tasks...\n")
-    results = run_baseline_on_all_tasks(api_key)
+    results = data.get("results", [])
+    avg = data.get("average_score", 0.0)
 
-    print("\n=== RESULTS ===")
-    total = 0.0
+    print("\n=== BASELINE RESULTS ===")
     for r in results:
-        print(f"Task: {r['task_id']} | Score: {r['score']} | Bug type: {r['bug_type_submitted']}")
-        total += r["score"]
+        print(
+            f"Task: {r['task_id']:<20} "
+            f"Score: {r['score']:.1f}  "
+            f"Bug type: {r['bug_type_submitted']}"
+        )
 
-    print(f"\nAverage score: {total / len(results):.4f}")
+    print(f"\nAverage score: {avg:.4f}")
+    print(f"Model: {data.get('model', 'unknown')}")
+    print("========================")
+
+    with open("baseline_results.json", "w") as f:
+        json.dump(data, f, indent=2)
+    print("\nResults saved to baseline_results.json")
+
+
+if __name__ == "__main__":
+    main()
