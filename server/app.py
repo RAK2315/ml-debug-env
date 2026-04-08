@@ -167,14 +167,11 @@ async def run_baseline() -> Dict[str, Any]:
     Runs the Groq-based baseline agent against all 3 tasks and returns scores.
     Requires GROQ_API_KEY environment variable.
     """
-    groq_api_key = os.environ.get("GROQ_API_KEY", "").strip()
+    groq_api_key = (os.environ.get("API_KEY") or os.environ.get("GROQ_API_KEY", "")).strip()
     if not groq_api_key:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "GROQ_API_KEY environment variable not set. "
-                "Set it to run the baseline agent."
-            ),
+            detail="API_KEY or GROQ_API_KEY environment variable not set.",
         )
 
     try:
@@ -182,7 +179,7 @@ async def run_baseline() -> Dict[str, Any]:
         if server_dir not in sys.path:
             sys.path.insert(0, server_dir)
         from baseline_inference import run_baseline_on_all_tasks
-        base_url = os.environ.get("API_BASE_URL") or "https://api.groq.com/openai/v1"
+        base_url = (os.environ.get("API_BASE_URL") or "https://api.groq.com/openai/v1").strip()
         results = await asyncio.get_event_loop().run_in_executor(
             None, run_baseline_on_all_tasks, groq_api_key, base_url
         )
