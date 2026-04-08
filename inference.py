@@ -1,69 +1,54 @@
-# inference.py
-# Hackathon Phase 2 inference script.
-# Hits the deployed HF Space /baseline endpoint.
-# The server uses API_BASE_URL + API_KEY env vars injected by the validator.
-
 import os
 import sys
 import json
-import urllib.request
-import urllib.error
+from openai import OpenAI
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
+from bug_generator import get_scenario, TASK_SHAPE_MISMATCH, TASK_TRAINING_COLLAPSE, TASK_DATA_LEAKAGE
+from grader import grade
 
-LOCAL_URL     = "http://localhost:8000"
-HF_SPACE_URL = "https://rak2315-ml-debug-env.hf.space"
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+API_KEY = os.getenv("API_KEY") or os.getenv("GROQ_API_KEY", "")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
+SYSTEM_PROMPT = """You are an expert ML engineer specializing in debugging PyTorch training code.
+You must respond with valid JSON in exactly this format:
+{"bug_type": "<one of: shape_mismatch, training_collapse, data_leakage, other>", "diagnosis": "<clear explanation>", "fixed_code": "<complete corrected Python script>"}
+Rules: fixed_code must be the COMPLETE script with all imports. No markdown fences inside JSON. No text outside JSON."""
 
-def hit_baseline(base_url: str, timeout: int = 180) -> dict:
-    url = f"{base_url}/baseline"
-    req = urllib.request.Request(url, method="GET")
-    req.add_header("Accept", "application/json")
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode())
-
+def call_llm(client, task_description, buggy_code, error_output):
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Task: {task_description}\n\nBroken script:\n```python\n{buggy_code}\n```\n\nFailure observed:\n{error_output}\n\nRespond with JSON only."}
+        ],
+        temperature=0.0,
+        max_tokens=2048,
+        response_format={"type": "json_object"},
+    )
+    return json.loads(response.choices[0].message.content.strip())
 
 def main():
-    data = None
-    for base_url in [LOCAL_URL, HF_SPACE_URL]:
-        try:
-            print(f"Connecting to {base_url}/baseline ...", flush=True)
-            data = hit_baseline(base_url)
-            break
-        except Exception as e:
-            print(f"  Could not reach {base_url}: {e}", flush=True)
+    client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
+    tasks = [TASK_SHAPE_MISMATCH, TASK_TRAINING_COLLAPSE, TASK_DATA_LEAKAGE]
 
-    if data is None:
-        print("ERROR: Could not reach any server endpoint.", file=sys.stderr)
-        sys.exit(1)
-
-    results = data.get("results", [])
-    avg     = data.get("average_score", 0.0)
-
-    # Required structured output blocks
-    for r in results:
-        task_id = r["task_id"]
-        score   = r["score"]
-        steps   = r.get("steps_used", 1)
+    for task_id in tasks:
         print(f"[START] task={task_id}", flush=True)
-        print(f"[STEP] step=1 reward={score:.4f}", flush=True)
-        print(f"[END] task={task_id} score={score:.4f} steps={steps}", flush=True)
+        scenario = get_scenario(task_id, seed=42)
+        try:
+            parsed = call_llm(client, scenario.task_description, scenario.buggy_code, scenario.error_output)
+            bug_type = parsed.get("bug_type", "other")
+            diagnosis = parsed.get("diagnosis", "")
+            fixed_code = parsed.get("fixed_code", "")
+        except Exception as e:
+            bug_type, diagnosis, fixed_code = "other", str(e), ""
 
-    # Human-readable summary
-    print("\n=== BASELINE RESULTS ===", flush=True)
-    for r in results:
-        print(
-            f"Task: {r['task_id']:<20} "
-            f"Score: {r['score']:.1f}  "
-            f"Bug type: {r['bug_type_submitted']}",
-            flush=True,
-        )
-    print(f"\nAverage score: {avg:.4f}", flush=True)
-    print(f"Model: {data.get('model', 'unknown')}", flush=True)
-    print("========================", flush=True)
+        result = grade(action_bug_type=bug_type, action_diagnosis=diagnosis, fixed_code=fixed_code, scenario=scenario)
+        print(f"[STEP] step=1 reward={result.score:.4f}", flush=True)
+        print(f"[END] task={task_id} score={result.score:.4f} steps=1", flush=True)
 
-    with open("baseline_results.json", "w") as f:
-        json.dump(data, f, indent=2)
-    print("\nResults saved to baseline_results.json", flush=True)
-
+    print("\nDone.", flush=True)
 
 if __name__ == "__main__":
     main()
