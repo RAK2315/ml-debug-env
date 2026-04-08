@@ -38,21 +38,32 @@ def main():
     results = data.get("results", [])
     avg = data.get("average_score", 0.0)
 
-    print("\n=== BASELINE RESULTS ===")
+    # Emit required structured output blocks
+    for r in results:
+        task_id = r["task_id"]
+        score = r["score"]
+        steps = r.get("steps_used", 1)
+
+        print(f"[START] task={task_id}", flush=True)
+        print(f"[STEP] step=1 reward={score:.4f}", flush=True)
+        print(f"[END] task={task_id} score={score:.4f} steps={steps}", flush=True)
+
+    # Human-readable summary (non-blocking, for reference)
+    print(f"\n=== BASELINE RESULTS ===", flush=True)
     for r in results:
         print(
             f"Task: {r['task_id']:<20} "
             f"Score: {r['score']:.1f}  "
-            f"Bug type: {r['bug_type_submitted']}"
+            f"Bug type: {r['bug_type_submitted']}",
+            flush=True,
         )
-
-    print(f"\nAverage score: {avg:.4f}")
-    print(f"Model: {data.get('model', 'unknown')}")
-    print("========================")
+    print(f"\nAverage score: {avg:.4f}", flush=True)
+    print(f"Model: {data.get('model', 'unknown')}", flush=True)
+    print("========================", flush=True)
 
     with open("baseline_results.json", "w") as f:
         json.dump(data, f, indent=2)
-    print("\nResults saved to baseline_results.json")
+    print("\nResults saved to baseline_results.json", flush=True)
 
 
 if __name__ == "__main__":
