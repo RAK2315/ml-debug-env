@@ -1,13 +1,10 @@
 # server/baseline_inference.py
 """
-Baseline inference script using Groq (free tier).
-Uses the OpenAI-compatible SDK pointed at Groq's endpoint.
+Baseline inference script.
+Uses API_BASE_URL and API_KEY environment variables injected by the validator.
+Falls back to Groq if those are not set (local dev).
 
-Usage:
-    python baseline_inference.py
-
-Requires GROQ_API_KEY environment variable.
-Model: llama-3.3-70b-versatile (free on Groq)
+Model: llama-3.3-70b-versatile
 """
 
 import os
@@ -66,7 +63,7 @@ Failure observed:
 Respond with JSON only."""
 
 
-def call_groq(client: OpenAI, user_prompt: str) -> dict:
+def call_llm(client: OpenAI, user_prompt: str) -> dict:
     response = client.chat.completions.create(
         model=MODEL,
         messages=[
@@ -90,7 +87,7 @@ def run_single_task(client: OpenAI, task_id: str) -> dict:
     )
 
     try:
-        parsed = call_groq(client, user_prompt)
+        parsed = call_llm(client, user_prompt)
         bug_type = parsed.get("bug_type", "other")
         diagnosis = parsed.get("diagnosis", "")
         fixed_code = parsed.get("fixed_code", "")
@@ -119,10 +116,10 @@ def run_single_task(client: OpenAI, task_id: str) -> dict:
     }
 
 
-def run_baseline_on_all_tasks(api_key: str) -> list:
+def run_baseline_on_all_tasks(api_key: str, base_url: str) -> list:
     client = OpenAI(
         api_key=api_key,
-        base_url=GROQ_BASE_URL,
+        base_url=base_url,
     )
     results = []
     for task_id in [TASK_SHAPE_MISMATCH, TASK_TRAINING_COLLAPSE, TASK_DATA_LEAKAGE]:
@@ -134,16 +131,19 @@ def run_baseline_on_all_tasks(api_key: str) -> list:
 
 
 if __name__ == "__main__":
-    api_key = os.environ.get("GROQ_API_KEY", "")
+    # Use injected proxy creds if available, fall back to Groq for local dev
+    api_key  = os.environ.get("API_KEY")  or os.environ.get("GROQ_API_KEY", "")
+    base_url = os.environ.get("API_BASE_URL") or GROQ_BASE_URL
+
     if not api_key:
-        print("ERROR: GROQ_API_KEY environment variable not set.")
-        print("Set it with:  set GROQ_API_KEY=your_key_here  (Windows)")
+        print("ERROR: API_KEY (or GROQ_API_KEY) environment variable not set.")
         sys.exit(1)
 
     print(f"Running baseline with model: {MODEL}")
+    print(f"Base URL: {base_url}")
     print(f"Seed: {SEED}\n")
 
-    results = run_baseline_on_all_tasks(api_key)
+    results = run_baseline_on_all_tasks(api_key, base_url)
 
     print("\n=== BASELINE RESULTS ===")
     total = 0.0
