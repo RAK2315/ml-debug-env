@@ -32,7 +32,7 @@ def grade(action_bug_type: str, action_diagnosis: str, fixed_code: str, scenario
     type_correct = _check_bug_type(action_bug_type, scenario.correct_bug_type)
     if not type_correct:
         return GradeResult(
-            score=0.0,
+            score=0.01,
             feedback=(
                 f"Incorrect bug type. You identified '{action_bug_type}' "
                 f"but the actual bug is '{scenario.correct_bug_type}'. "
@@ -93,7 +93,7 @@ def grade(action_bug_type: str, action_diagnosis: str, fixed_code: str, scenario
         )
 
     return GradeResult(
-        score=1.0,
+        score=0.99,
         feedback=(
             f"Perfect fix. Bug type correct, code runs cleanly, "
             f"training completes, and success signal confirmed.\n"
