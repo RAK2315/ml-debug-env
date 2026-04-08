@@ -167,7 +167,7 @@ async def run_baseline() -> Dict[str, Any]:
     Runs the Groq-based baseline agent against all 3 tasks and returns scores.
     Requires GROQ_API_KEY environment variable.
     """
-    groq_api_key = os.environ.get("GROQ_API_KEY", "")
+    groq_api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not groq_api_key:
         raise HTTPException(
             status_code=503,
@@ -178,12 +178,17 @@ async def run_baseline() -> Dict[str, Any]:
         )
 
     try:
+        server_dir = os.path.dirname(os.path.abspath(__file__))
+        if server_dir not in sys.path:
+            sys.path.insert(0, server_dir)
         from baseline_inference import run_baseline_on_all_tasks
+        base_url = os.environ.get("API_BASE_URL") or "https://api.groq.com/openai/v1"
         results = await asyncio.get_event_loop().run_in_executor(
-            None, run_baseline_on_all_tasks, groq_api_key
+            None, run_baseline_on_all_tasks, groq_api_key, base_url
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Baseline run failed: {e}")
+        import traceback
+        raise HTTPException(status_code=500, detail=f"Baseline run failed: {e}\n{traceback.format_exc()}")
 
     avg = sum(r["score"] for r in results) / len(results) if results else 0.0
 

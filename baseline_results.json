@@ -1,0 +1,28 @@
+{
+  "results": [
+    {
+      "task_id": "shape_mismatch",
+      "score": 1.0,
+      "feedback": "Perfect fix. Bug type correct, code runs cleanly, training completes, and success signal confirmed.\nExecution output:\nEpoch 1 complete\nEpoch 2 complete\nEpoch 3 complete\nTraining finished",
+      "bug_type_submitted": "shape_mismatch",
+      "execution_output": "Epoch 1 complete\nEpoch 2 complete\nEpoch 3 complete\nTraining finished"
+    },
+    {
+      "task_id": "training_collapse",
+      "score": 1.0,
+      "feedback": "Perfect fix. Bug type correct, code runs cleanly, training completes, and success signal confirmed.\nExecution output:\nEpoch 1, loss: 1.2506\nEpoch 2, loss: 1.2130\nEpoch 3, loss: 1.1767\nEpoch 4, loss: 1.1394\nEpoch 5, loss: 1.0990\nTraining finished",
+      "bug_type_submitted": "training_collapse",
+      "execution_output": "Epoch 1, loss: 1.2506\nEpoch 2, loss: 1.2130\nEpoch 3, loss: 1.1767\nEpoch 4, loss: 1.1394\nEpoch 5, loss: 1.0990\nTraining finished"
+    },
+    {
+      "task_id": "data_leakage",
+      "score": 1.0,
+      "feedback": "Perfect fix. Bug type correct, code runs cleanly, training completes, and success signal confirmed.\nExecution output:\nTest accuracy: 0.9000\nTraining finished",
+      "bug_type_submitted": "data_leakage",
+      "execution_output": "Test accuracy: 0.9000\nTraining finished"
+    }
+  ],
+  "average_score": 1.0,
+  "model": "llama-3.3-70b-versatile (Groq)",
+  "note": "Baseline uses a single-shot zero-prompt strategy with no examples."
+}

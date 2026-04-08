@@ -11,7 +11,9 @@ import os
 import sys
 import json
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_server_dir = os.path.dirname(os.path.abspath(__file__))
+if _server_dir not in sys.path:
+    sys.path.insert(0, _server_dir)
 
 from openai import OpenAI
 
@@ -132,7 +134,7 @@ def run_baseline_on_all_tasks(api_key: str, base_url: str) -> list:
 
 if __name__ == "__main__":
     # Use injected proxy creds if available, fall back to Groq for local dev
-    api_key  = os.environ.get("API_KEY")  or os.environ.get("GROQ_API_KEY", "")
+    api_key  = (os.environ.get("API_KEY") or os.environ.get("GROQ_API_KEY", "")).strip()
     base_url = os.environ.get("API_BASE_URL") or GROQ_BASE_URL
 
     if not api_key:

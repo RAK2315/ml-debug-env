@@ -9,8 +9,8 @@ import json
 import urllib.request
 import urllib.error
 
-HF_SPACE_URL = "https://rak2315-ml-debug-env.hf.space"
 LOCAL_URL     = "http://localhost:8000"
+HF_SPACE_URL = "https://rak2315-ml-debug-env.hf.space"
 
 
 def hit_baseline(base_url: str, timeout: int = 180) -> dict:
@@ -23,7 +23,7 @@ def hit_baseline(base_url: str, timeout: int = 180) -> dict:
 
 def main():
     data = None
-    for base_url in [HF_SPACE_URL, LOCAL_URL]:
+    for base_url in [LOCAL_URL, HF_SPACE_URL]:
         try:
             print(f"Connecting to {base_url}/baseline ...", flush=True)
             data = hit_baseline(base_url)
