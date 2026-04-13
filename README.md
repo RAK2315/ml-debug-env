@@ -33,53 +33,82 @@ The agent is dropped into a broken PyTorch training environment. It sees the bug
 
 The grader then **actually executes** the fixed code in a subprocess and scores it across 6 stages of increasing correctness. There is no cheating — the code has to run.
 
-This is a realistic simulation of the debugging loop every ML engineer goes through daily.
+The environment also supports **multi-turn episodes** — if the agent's first fix is incomplete, the grader's feedback is fed back and the agent gets up to 3 attempts to reach a perfect score. This simulates the real debugging loop every ML engineer goes through daily.
 
 ---
 
 ## 🎯 Tasks
 
-Three tasks of increasing difficulty, each representing a common class of real-world ML bugs:
+Six tasks of increasing difficulty, covering the most common classes of real-world PyTorch bugs:
 
 | task_id | Difficulty | What's Broken | Why It's Hard |
 |---|---|---|---|
 | `shape_mismatch` | 🟢 Easy | `nn.Linear` input dim is wrong → explicit `RuntimeError` crash | Error is in the traceback. Read it. |
 | `training_collapse` | 🟡 Medium | Huge LR → NaN loss, **or** wrong loss fn → flat plateau. No crash. | No error — agent must reason about training dynamics |
+| `wrong_device` | 🟡 Medium | Model on CUDA, data on CPU → explicit `RuntimeError` on forward pass | Device mismatch is in the traceback but fix requires understanding tensor placement |
+| `gradient_not_zeroed` | 🟠 Medium-Hard | `optimizer.zero_grad()` missing → gradients accumulate → loss explodes to NaN | No crash, no error. Agent must reason about training loop structure |
 | `data_leakage` | 🔴 Hard | Dataset normalized before train/test split → inflated metrics, no error | Everything *looks* fine. Agent must understand data pipelines |
+| `missing_eval_mode` | 🔴 Hard | `model.eval()` and `torch.no_grad()` missing → Dropout active during eval → unstable metrics | No error, code runs. Agent must understand train vs eval mode semantics |
+
+---
 
 ### Task 1 — Shape Mismatch (Easy)
 
-A `SimpleClassifier` has a 2-layer encoder that outputs `hidden_size` features (e.g. 256), but the classifier head is initialized with `nn.Linear(wrong_size, num_classes)` where `wrong_size` (e.g. 32) doesn't match. The forward pass crashes immediately with:
+A `SimpleClassifier` has a 2-layer encoder that outputs `hidden_size` features (e.g. 256), but the classifier head is initialized with `nn.Linear(wrong_size, num_classes)` where `wrong_size` doesn't match. The forward pass crashes immediately with:
 
 ```
 RuntimeError: mat1 and mat2 shapes cannot be multiplied (256 cannot be broadcast to 32)
 ```
 
-The fix: change `nn.Linear(wrong_size, ...)` to `nn.Linear(hidden_size, ...)`.
+The `hidden_size` and `wrong_size` values are randomized per episode seed.
 
-The `hidden_size` and `wrong_size` values are randomized per episode seed so agents can't hardcode the fix.
+---
 
 ### Task 2 — Training Collapse (Medium)
 
 Two variants, randomly selected:
 
-**Variant A — Bad learning rate:** SGD with `lr=100.0` (or 10.0 or 50.0). Loss explodes to NaN by epoch 2. Code runs, no crash, just broken training. Fix: reduce lr to ~1e-3.
+**Variant A — Bad learning rate:** SGD with `lr=100.0` (or 10.0 or 50.0). Loss explodes to NaN by epoch 2. Fix: reduce lr to ~1e-3.
 
-**Variant B — Wrong loss function:** Binary classification model with sigmoid output trained with `MSELoss` instead of `BCELoss`. Loss plateaus immediately around 0.25 and never decreases. Fix: switch to `BCELoss` or remove sigmoid and use `BCEWithLogitsLoss`.
+**Variant B — Wrong loss function:** Binary classification model with sigmoid output trained with `MSELoss` instead of `BCELoss`. Loss plateaus immediately. Fix: switch to `BCELoss` or use `BCEWithLogitsLoss`.
 
-The agent must distinguish between these variants from the error description alone.
+---
 
-### Task 3 — Data Leakage (Hard)
+### Task 3 — Wrong Device (Medium)
+
+Model is moved to GPU via `.to(device)` but data batches remain on CPU. Every forward pass crashes with:
+
+```
+RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+```
+
+Fix: move `xb` and `yb` to device inside the training loop.
+
+---
+
+### Task 4 — Gradient Not Zeroed (Medium-Hard)
+
+`optimizer.zero_grad()` is missing from the training loop. Gradients from previous batches accumulate, causing loss to explode after the first epoch and collapse to NaN. No crash occurs. The agent must identify the missing call from loss behavior alone.
+
+---
+
+### Task 5 — Data Leakage (Hard)
 
 Two variants, randomly selected:
 
-**Variant A:** Normalization computed on full dataset (`X_raw.mean(dim=0)`) before the train/test split. Test set statistics contaminate training. Reported accuracy looks great (~96%) but is invalid.
+**Variant A:** Normalization computed on full dataset before the train/test split. Test set statistics contaminate training.
 
-**Variant B:** Train/test split done first, but `full_mean = X_raw.mean(dim=0)` still computed on the whole dataset and used to normalize both sets. Same bug, different code structure.
+**Variant B:** Split done first, but `full_mean = X_raw.mean(dim=0)` still computed on whole dataset and used to normalize both sets.
 
-Fix: compute `mean` and `std` only from `X_train`, then apply those stats to normalize both `X_train` and `X_test`.
+Fix: compute `mean` and `std` only from `X_train`, then apply those stats to both sets.
 
-This task has no error, no NaN, no crash. The agent must reason about data flow.
+---
+
+### Task 6 — Missing Eval Mode (Hard)
+
+A classifier with `Dropout` and `BatchNorm` layers is evaluated without calling `model.eval()` or `torch.no_grad()`. Dropout stays active during inference, causing different predictions each forward pass. Test accuracy is noisy and unreliable. No error is raised.
+
+Fix: call `model.eval()` and wrap evaluation in `torch.no_grad()`.
 
 ---
 
@@ -114,7 +143,7 @@ The agent returns a single JSON object:
 
 | Field | Type | Values |
 |---|---|---|
-| `bug_type` | `str` | `shape_mismatch`, `training_collapse`, `data_leakage`, `other` |
+| `bug_type` | `str` | `shape_mismatch`, `training_collapse`, `data_leakage`, `wrong_device`, `gradient_not_zeroed`, `missing_eval_mode`, `other` |
 | `diagnosis` | `str` | Plain-language explanation of the root cause |
 | `fixed_code` | `str` | Complete corrected Python script, all imports included, runnable as-is |
 
@@ -200,17 +229,15 @@ with MlDebugEnvClient(base_url=SPACE_URL).sync() as env:
 
 ## 🌐 API Endpoints
 
-The server exposes both the standard OpenEnv spec endpoints and additional utility endpoints:
-
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/reset` | Start a new debug episode, returns buggy code + error |
 | `POST` | `/step` | Submit a fix attempt, returns score + feedback |
 | `GET` | `/state` | Get current episode state |
 | `GET` | `/health` | Health check — `{"status": "healthy"}` |
-| `GET` | `/tasks` | List all 3 tasks with descriptions and action schema |
+| `GET` | `/tasks` | List all 6 tasks with descriptions and action schema |
 | `POST` | `/grader` | Score a fix directly without running a full episode |
-| `GET` | `/baseline` | Run the built-in LLM baseline agent on all 3 tasks |
+| `GET` | `/baseline` | Run the built-in LLM baseline agent on all 6 tasks |
 | `WS` | `/ws` | Persistent WebSocket session for low-latency interaction |
 | `GET` | `/docs` | Interactive Swagger UI |
 | `GET` | `/schema` | Environment JSON schema |
@@ -219,16 +246,19 @@ The server exposes both the standard OpenEnv spec endpoints and additional utili
 
 ## 📊 Baseline Results
 
-Built-in baseline agent: `llama-3.3-70b-versatile` — zero-shot, single attempt, no examples.
+Built-in baseline agent: `llama-3.3-70b-versatile` — zero-shot, up to 3 self-correcting attempts using grader feedback.
 
-| task_id | Score |
-|---|---|
-| `shape_mismatch` | **0.99** |
-| `training_collapse` | **0.99** |
-| `data_leakage` | **0.99** |
-| **Average** | **0.99** |
+| task_id | Difficulty | Score |
+|---|---|---|
+| `shape_mismatch` | Easy | **0.99** |
+| `training_collapse` | Medium | **0.99** |
+| `wrong_device` | Medium | **0.99** |
+| `gradient_not_zeroed` | Medium-Hard | **0.99** |
+| `data_leakage` | Hard | **0.99** |
+| `missing_eval_mode` | Hard | **0.99** |
+| **Average** | — | **0.99** |
 
-The baseline uses a structured JSON system prompt and the OpenAI-compatible Groq API. It correctly identifies the bug type and returns a complete fixed script for all 3 tasks in a single zero-shot pass.
+The baseline uses a structured JSON system prompt with explicit bug type constraints and a multi-turn retry loop — if the first fix scores below 0.95, grader feedback is injected into the next attempt.
 
 ---
 
@@ -261,7 +291,7 @@ Agent / Validator
                                  │
                              LLM Proxy (API_BASE_URL)
                                  │
-                             llama-3.3-70b-versatile
+                             Multi-turn retry loop
 ```
 
 ---
@@ -279,47 +309,15 @@ ml_debug_env/
 ├── pyproject.toml                   # Project metadata + deps
 ├── baseline_results.json            # Latest baseline run results
 ├── test.py                          # Sanity tests (no server needed)
-├── test2.py                         # Full 20-check submission validator
 └── server/
     ├── app.py                       # FastAPI app — all endpoints
-    ├── bug_generator.py             # Procedural buggy script generation
+    ├── bug_generator.py             # Procedural buggy script generation (6 tasks)
     ├── grader.py                    # Executes fixed code, returns 0.01–0.99 score
     ├── ml_debug_env_environment.py  # OpenEnv Environment class (reset/step/state)
-    ├── baseline_inference.py        # LLM baseline agent
-    ├── Dockerfile                   # Alternative Dockerfile (used for local dev)
+    ├── baseline_inference.py        # LLM baseline agent with multi-turn retry
+    ├── Dockerfile                   # Alternative Dockerfile (local dev)
     └── requirements.txt             # Server runtime deps
 ```
-
-### File Responsibilities
-
-**`server/bug_generator.py`**
-Procedurally generates buggy PyTorch scripts using a random seed. Each task has randomized parameters (hidden sizes, learning rates, variants) so the same task_id produces slightly different code each episode. Provides `get_scenario(task_id, seed)` → `BugScenario`.
-
-**`server/grader.py`**
-The referee. Writes the agent's fixed code to a temp file, executes it via `subprocess.run` using the correct Python interpreter (found via `PYTHON_EXEC` env var or venv detection), and applies 5 verification stages. Each stage checks progressively deeper correctness — from "does it run" to "does the output contain the right success signal".
-
-**`server/ml_debug_env_environment.py`**
-Implements the OpenEnv `Environment` interface. Manages episode state, rotates through tasks when none is pinned, handles `reset()` / `step()` / `state` with proper session isolation. Supports concurrent sessions.
-
-**`server/app.py`**
-FastAPI application. Wraps the environment with the OpenEnv `create_app()` factory, then adds `/tasks`, `/grader`, and `/baseline` endpoints on top. The `/baseline` endpoint runs the LLM agent on all 3 tasks and returns scores.
-
-**`server/baseline_inference.py`**
-The built-in LLM agent. Uses the OpenAI client pointed at `API_BASE_URL` (Groq by default). Sends buggy code + error to `llama-3.3-70b-versatile` with a structured JSON system prompt. Parses the response and passes the fix to the grader.
-
-**`inference.py`** (root)
-What the hackathon validator actually executes. Reads `API_BASE_URL`, `MODEL_NAME`, `API_KEY` from environment, calls the LLM proxy directly (not through the server), grades results locally, and emits structured stdout logs in the required format:
-```
-[START] task=shape_mismatch
-[STEP] step=1 reward=0.9900
-[END] task=shape_mismatch score=0.9900 steps=1
-```
-
-**`models.py`**
-Pydantic v2 models for the action/observation/state types used across the whole system.
-
-**`client.py`**
-Python client library so external agents can interact with the deployed HF Space using the `MlDebugEnvClient` class instead of raw HTTP.
 
 ---
 
@@ -329,18 +327,18 @@ Python client library so external agents can interact with the deployed HF Space
 git clone https://huggingface.co/spaces/rak2315/ml-debug-env
 cd ml-debug-env
 
-# Install deps
 pip install -e .
 
-# Set env vars
+# Set env vars (Windows)
 set GROQ_API_KEY=your_groq_key
-set PYTHON_EXEC=path/to/python/with/torch  # Windows: needed if venv lacks torch
+set PYTHON_EXEC=path\to\python\with\torch
 
 # Run server
 uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
 
-# Run full validation (20 checks)
-python test2.py
+# Verify all 6 tasks
+curl http://localhost:8000/tasks
+curl http://localhost:8000/health
 ```
 
 **With Docker:**
@@ -356,12 +354,12 @@ docker run -e GROQ_API_KEY=your_key -p 8000:8000 ml-debug-env:latest
 
 | Variable | Required | Description |
 |---|---|---|
-| `API_BASE_URL` | Injected by validator | LLM proxy endpoint. Falls back to Groq if not set. |
-| `API_KEY` | Injected by validator | LLM proxy API key. Falls back to `GROQ_API_KEY`. |
-| `MODEL_NAME` | Injected by validator | Model to use. Defaults to `llama-3.3-70b-versatile`. |
+| `API_BASE_URL` | Injected by validator | LLM proxy endpoint. Defaults to HF inference router. |
+| `API_KEY` | Injected by validator | LLM proxy API key. |
+| `HF_TOKEN` | Injected by validator | Primary auth token — checked before API_KEY. |
+| `MODEL_NAME` | Injected by validator | Model to use. Defaults to `Qwen/Qwen2.5-72B-Instruct`. |
 | `GROQ_API_KEY` | Optional (local dev) | Enables `/baseline` endpoint locally via Groq free tier. |
 | `PYTHON_EXEC` | Optional (local dev) | Path to Python interpreter with torch installed, used by grader subprocess. |
-| `HF_TOKEN` | Optional | HuggingFace token for Space access. |
 
 ---
 
