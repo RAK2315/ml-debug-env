@@ -2,7 +2,8 @@ import os
 import sys
 
 os.environ['API_BASE_URL'] = 'https://api.groq.com/openai/v1'
-os.environ['API_KEY'] = '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'
+# change line 5 in test2.py from hardcoded key to:
+API_KEY = os.environ.get("API_KEY", "")
 os.environ['MODEL_NAME'] = 'llama-3.3-70b-versatile'
 os.environ['PYTHON_EXEC'] = r'C:\Users\rehtr\AppData\Local\Programs\Python\Python310\python.exe'
 
