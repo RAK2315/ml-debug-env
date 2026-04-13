@@ -1,10 +1,8 @@
-# server/ml_debug_env_environment.py
 import sys
 import os
 from uuid import uuid4
 from typing import Optional
 
-# server/ is the working dir inside Docker; add parent for models import
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from openenv.core.env_server.interfaces import Environment
@@ -18,36 +16,37 @@ from bug_generator import (
     TASK_SHAPE_MISMATCH,
     TASK_TRAINING_COLLAPSE,
     TASK_DATA_LEAKAGE,
+    TASK_WRONG_DEVICE,
+    TASK_GRADIENT_NOT_ZEROED,
+    TASK_MISSING_EVAL_MODE,
+    ALL_TASKS,
 )
 from grader import grade, GradeResult
 
-TASK_ORDER = [TASK_SHAPE_MISMATCH, TASK_TRAINING_COLLAPSE, TASK_DATA_LEAKAGE]
 MAX_STEPS = 3
 
 
 class MlDebugEnvEnvironment(Environment):
     """
-    ML Debugging Environment.
+    ML Debugging Environment — 6 tasks, easy → hard.
 
-    The agent receives a broken PyTorch training script and must:
-      1. Identify the bug type
-      2. Explain the root cause
-      3. Return a complete corrected script
+    Tasks:
+      shape_mismatch      (easy)        — explicit crash, wrong linear layer size
+      training_collapse   (medium)      — NaN loss or wrong loss function
+      data_leakage        (hard)        — silent, evaluation is invalid
+      wrong_device        (medium)      — CPU/CUDA tensor mismatch, explicit crash
+      gradient_not_zeroed (medium-hard) — missing zero_grad, loss explodes
+      missing_eval_mode   (hard)        — no model.eval(), unreliable metrics
 
-    Three tasks of increasing difficulty:
-      - shape_mismatch    (easy)   : explicit crash, wrong linear layer size
-      - training_collapse (medium) : silent failure, NaN loss or wrong loss fn
-      - data_leakage      (hard)   : everything looks fine, evaluation is invalid
-
-    Episodes are single-step by default (one fix attempt = one episode).
-    MAX_STEPS=3 allows retry attempts with partial credit carried forward.
+    Episodes are single-step by default. MAX_STEPS=3 allows retry with
+    grader feedback fed back to the agent.
     """
 
     SUPPORTS_CONCURRENT_SESSIONS = True
 
     def __init__(self, task_id: Optional[str] = None):
         super().__init__()
-        self._task_id: Optional[str] = task_id  # None = rotate through tasks
+        self._task_id: Optional[str] = task_id
         self._current_scenario: Optional[BugScenario] = None
         self._state = DebugState(
             episode_id=None,
@@ -57,11 +56,7 @@ class MlDebugEnvEnvironment(Environment):
             current_score=0.0,
             attempts=0,
         )
-        self._episode_count = 0  # used to rotate tasks when task_id is None
-
-    # ------------------------------------------------------------------ #
-    #  reset()                                                             #
-    # ------------------------------------------------------------------ #
+        self._episode_count = 0
 
     def reset(
         self,
@@ -70,16 +65,6 @@ class MlDebugEnvEnvironment(Environment):
         task_id: Optional[str] = None,
         **kwargs,
     ) -> DebugObservation:
-        """
-        Start a new episode. Returns the buggy script + error output.
-
-        Args:
-            seed:       Random seed for reproducible scenario generation.
-            episode_id: Optional custom episode identifier.
-            task_id:    Pin to a specific task ('shape_mismatch',
-                        'training_collapse', 'data_leakage').
-                        If None, rotates through tasks in order.
-        """
         active_task = task_id or self._task_id or self._next_task()
         scenario = get_scenario(active_task, seed=seed)
 
@@ -106,24 +91,12 @@ class MlDebugEnvEnvironment(Environment):
             reward=None,
         )
 
-    # ------------------------------------------------------------------ #
-    #  step()                                                              #
-    # ------------------------------------------------------------------ #
-
     def step(
         self,
         action: DebugAction,
         timeout_s: Optional[float] = None,
         **kwargs,
     ) -> DebugObservation:
-        """
-        Evaluate the agent's fix attempt and return a scored observation.
-
-        The agent must supply:
-          - bug_type    : category of the bug
-          - diagnosis   : plain-language explanation
-          - fixed_code  : complete corrected Python script
-        """
         if self._current_scenario is None:
             raise RuntimeError("Call reset() before step().")
 
@@ -137,12 +110,11 @@ class MlDebugEnvEnvironment(Environment):
             scenario=self._current_scenario,
         )
 
-        # Keep best score across retry attempts
         if result.score > self._state.current_score:
             self._state.current_score = result.score
 
         done = (
-            result.score == 1.0
+            result.score >= 0.95
             or self._state.step_count >= MAX_STEPS
         )
 
@@ -159,21 +131,12 @@ class MlDebugEnvEnvironment(Environment):
             reward=result.score,
         )
 
-    # ------------------------------------------------------------------ #
-    #  state property                                                      #
-    # ------------------------------------------------------------------ #
-
     @property
     def state(self) -> DebugState:
         return self._state
 
-    # ------------------------------------------------------------------ #
-    #  helpers                                                             #
-    # ------------------------------------------------------------------ #
-
     def _next_task(self) -> str:
-        """Rotate through tasks so consecutive episodes cover all three."""
-        task = TASK_ORDER[self._episode_count % len(TASK_ORDER)]
+        task = ALL_TASKS[self._episode_count % len(ALL_TASKS)]
         self._episode_count += 1
         return task
 
@@ -183,12 +146,13 @@ class MlDebugEnvEnvironment(Environment):
             name="ML Debugging Environment",
             description=(
                 "An RL environment where agents debug broken PyTorch training scripts. "
-                "Three tasks of increasing difficulty: shape mismatch (easy), "
-                "training collapse (medium), and silent data leakage (hard). "
-                "Agents receive a buggy script + error output and must return "
-                "a corrected script. The grader executes the fix and scores 0.0–1.0 "
-                "with partial credit at each stage."
+                "Six tasks of increasing difficulty: shape mismatch (easy), "
+                "training collapse (medium), wrong device (medium), "
+                "gradient not zeroed (medium-hard), data leakage (hard), "
+                "and missing eval mode (hard). "
+                "Agents receive a buggy script and must return a corrected version. "
+                "The grader executes the fix and scores 0.01–0.99 with partial credit."
             ),
-            version="1.0.0",
+            version="2.0.0",
             author="ml-debug-env",
         )

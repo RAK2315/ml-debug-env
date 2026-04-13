@@ -1,11 +1,9 @@
-# server/app.py
 import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 import asyncio
-from typing import Any, Dict, List
-
+from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,13 +17,12 @@ from bug_generator import (
     TASK_SHAPE_MISMATCH,
     TASK_TRAINING_COLLAPSE,
     TASK_DATA_LEAKAGE,
+    TASK_WRONG_DEVICE,
+    TASK_GRADIENT_NOT_ZEROED,
+    TASK_MISSING_EVAL_MODE,
     get_scenario,
 )
 from grader import grade
-
-# ------------------------------------------------------------------ #
-#  Base OpenEnv app (handles /reset /step /state /health /ws /schema) #
-# ------------------------------------------------------------------ #
 
 app = create_app(
     MlDebugEnvEnvironment,
@@ -41,18 +38,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ------------------------------------------------------------------ #
-#  /tasks  — list tasks + action schema                               #
-# ------------------------------------------------------------------ #
-
 TASK_DEFINITIONS = [
     {
         "task_id": TASK_SHAPE_MISMATCH,
         "name": "Shape Mismatch",
         "difficulty": "easy",
         "description": (
-            "A PyTorch classifier crashes immediately with a RuntimeError during the "
-            "forward pass. The error message is explicit in the traceback. "
+            "A PyTorch classifier crashes immediately with a RuntimeError during the forward pass. "
+            "The error message is explicit in the traceback. "
             "Fix the architectural bug so the model trains for 3 epochs without error."
         ),
         "success_criteria": "Code runs to completion; all epoch logs print; no RuntimeError.",
@@ -62,8 +55,8 @@ TASK_DEFINITIONS = [
         "name": "Training Collapse",
         "difficulty": "medium",
         "description": (
-            "A PyTorch training script runs without crashing but the model completely "
-            "fails to learn. Loss diverges to NaN or plateaus immediately. "
+            "A PyTorch training script runs without crashing but the model completely fails to learn. "
+            "Loss diverges to NaN or plateaus immediately. "
             "Fix the training bug so loss decreases consistently across all epochs."
         ),
         "success_criteria": "Loss decreases across epochs; no NaN values in output.",
@@ -82,6 +75,39 @@ TASK_DEFINITIONS = [
             "test set metrics reflect genuine generalisation."
         ),
     },
+    {
+        "task_id": TASK_WRONG_DEVICE,
+        "name": "Wrong Device",
+        "difficulty": "medium",
+        "description": (
+            "A PyTorch script crashes on the first forward pass because the model and data tensors "
+            "are on different devices (CPU vs CUDA). "
+            "Fix tensor placement so training runs cleanly on whatever device is available."
+        ),
+        "success_criteria": "All tensors on the same device; training completes 3 epochs without RuntimeError.",
+    },
+    {
+        "task_id": TASK_GRADIENT_NOT_ZEROED,
+        "name": "Gradient Not Zeroed",
+        "difficulty": "medium-hard",
+        "description": (
+            "A PyTorch training script runs but loss explodes after the first epoch and collapses to NaN. "
+            "No crash occurs. There is a fundamental error in the training loop structure. "
+            "Fix the loop so loss decreases consistently across all epochs."
+        ),
+        "success_criteria": "Loss decreases consistently across 6 epochs; no NaN values.",
+    },
+    {
+        "task_id": TASK_MISSING_EVAL_MODE,
+        "name": "Missing Eval Mode",
+        "difficulty": "hard",
+        "description": (
+            "A PyTorch classifier trains successfully but produces unstable and unreliable test accuracy. "
+            "The model has Dropout and BatchNorm layers. Running evaluation multiple times gives different results. "
+            "Fix the evaluation so it produces stable, correct metrics."
+        ),
+        "success_criteria": "model.eval() and torch.no_grad() used during evaluation; metrics are stable and deterministic.",
+    },
 ]
 
 ACTION_SCHEMA = {
@@ -91,7 +117,15 @@ ACTION_SCHEMA = {
         "bug_type": {
             "type": "string",
             "description": "Category of bug identified.",
-            "enum": ["shape_mismatch", "training_collapse", "data_leakage", "other"],
+            "enum": [
+                "shape_mismatch",
+                "training_collapse",
+                "data_leakage",
+                "wrong_device",
+                "gradient_not_zeroed",
+                "missing_eval_mode",
+                "other",
+            ],
         },
         "diagnosis": {
             "type": "string",
@@ -107,6 +141,8 @@ ACTION_SCHEMA = {
     },
 }
 
+VALID_TASK_IDS = [t["task_id"] for t in TASK_DEFINITIONS]
+
 
 @app.get("/tasks")
 def list_tasks() -> Dict[str, Any]:
@@ -114,13 +150,9 @@ def list_tasks() -> Dict[str, Any]:
         "tasks": TASK_DEFINITIONS,
         "action_schema": ACTION_SCHEMA,
         "total_tasks": len(TASK_DEFINITIONS),
-        "difficulty_range": "easy → medium → hard",
+        "difficulty_range": "easy → medium → medium-hard → hard",
     }
 
-
-# ------------------------------------------------------------------ #
-#  /grader  — score a fix without running a full episode              #
-# ------------------------------------------------------------------ #
 
 class GraderRequest(BaseModel):
     task_id: str
@@ -132,11 +164,10 @@ class GraderRequest(BaseModel):
 
 @app.post("/grader")
 def run_grader(req: GraderRequest) -> Dict[str, Any]:
-    valid_tasks = [TASK_SHAPE_MISMATCH, TASK_TRAINING_COLLAPSE, TASK_DATA_LEAKAGE]
-    if req.task_id not in valid_tasks:
+    if req.task_id not in VALID_TASK_IDS:
         raise HTTPException(
             status_code=400,
-            detail=f"task_id must be one of {valid_tasks}",
+            detail=f"task_id must be one of {VALID_TASK_IDS}",
         )
     try:
         scenario = get_scenario(req.task_id, seed=req.seed)
@@ -157,21 +188,13 @@ def run_grader(req: GraderRequest) -> Dict[str, Any]:
     }
 
 
-# ------------------------------------------------------------------ #
-#  /baseline  — run the Groq-powered baseline agent on all 3 tasks   #
-# ------------------------------------------------------------------ #
-
 @app.get("/baseline")
 async def run_baseline() -> Dict[str, Any]:
-    """
-    Runs the Groq-based baseline agent against all 3 tasks and returns scores.
-    Requires GROQ_API_KEY environment variable.
-    """
-    groq_api_key = (os.environ.get("API_KEY") or os.environ.get("GROQ_API_KEY", "")).strip()
+    groq_api_key = (os.environ.get("HF_TOKEN") or os.environ.get("API_KEY") or os.environ.get("GROQ_API_KEY", "")).strip()
     if not groq_api_key:
         raise HTTPException(
             status_code=503,
-            detail="API_KEY or GROQ_API_KEY environment variable not set.",
+            detail="HF_TOKEN, API_KEY, or GROQ_API_KEY environment variable not set.",
         )
 
     try:
@@ -179,7 +202,7 @@ async def run_baseline() -> Dict[str, Any]:
         if server_dir not in sys.path:
             sys.path.insert(0, server_dir)
         from baseline_inference import run_baseline_on_all_tasks
-        base_url = (os.environ.get("API_BASE_URL") or "https://api.groq.com/openai/v1").strip()
+        base_url = (os.environ.get("API_BASE_URL") or "https://router.huggingface.co/v1").strip()
         results = await asyncio.get_event_loop().run_in_executor(
             None, run_baseline_on_all_tasks, groq_api_key, base_url
         )
@@ -192,13 +215,15 @@ async def run_baseline() -> Dict[str, Any]:
     return {
         "results": results,
         "average_score": round(avg, 4),
-        "model": "llama-3.3-70b-versatile (Groq)",
+        "model": os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct"),
         "note": "Baseline uses a single-shot zero-prompt strategy with no examples.",
     }
+
 
 def main():
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 if __name__ == "__main__":
     main()
