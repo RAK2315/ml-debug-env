@@ -11,15 +11,16 @@ from openenv.core.env_server.types import State
 from models import DebugAction, DebugObservation, DebugState
 from bug_generator import (
     get_scenario,
-    get_random_task,
     BugScenario,
+    ALL_TASKS,
     TASK_SHAPE_MISMATCH,
     TASK_TRAINING_COLLAPSE,
     TASK_DATA_LEAKAGE,
     TASK_WRONG_DEVICE,
     TASK_GRADIENT_NOT_ZEROED,
     TASK_MISSING_EVAL_MODE,
-    ALL_TASKS,
+    TASK_COMPOUND_SHAPE_DEVICE,
+    TASK_COMPOUND_LEAKAGE_EVAL,
 )
 from grader import grade, GradeResult
 
@@ -28,18 +29,23 @@ MAX_STEPS = 3
 
 class MlDebugEnvEnvironment(Environment):
     """
-    ML Debugging Environment — 6 tasks, easy → hard.
+    ML Debugging Environment — 8 tasks, easy → expert.
 
-    Tasks:
-      shape_mismatch      (easy)        — explicit crash, wrong linear layer size
-      training_collapse   (medium)      — NaN loss or wrong loss function
-      data_leakage        (hard)        — silent, evaluation is invalid
-      wrong_device        (medium)      — CPU/CUDA tensor mismatch, explicit crash
-      gradient_not_zeroed (medium-hard) — missing zero_grad, loss explodes
-      missing_eval_mode   (hard)        — no model.eval(), unreliable metrics
+    Single-bug tasks (6):
+      shape_mismatch      (easy)
+      training_collapse   (medium)
+      wrong_device        (medium)
+      gradient_not_zeroed (medium-hard)
+      data_leakage        (hard)
+      missing_eval_mode   (hard)
 
-    Episodes are single-step by default. MAX_STEPS=3 allows retry with
-    grader feedback fed back to the agent.
+    Compound tasks — TWO bugs per script (2):
+      compound_shape_device  (medium-hard) — shape mismatch + device mismatch
+      compound_leakage_eval  (expert)      — data leakage + missing eval mode
+
+    Graders are execution-based: fixed code is actually run in a subprocess.
+    Multi-turn episodes: agent gets up to 3 attempts with grader feedback.
+    bug_type="other" skips type check — goes straight to execution scoring.
     """
 
     SUPPORTS_CONCURRENT_SESSIONS = True
@@ -87,6 +93,7 @@ class MlDebugEnvEnvironment(Environment):
             grader_score=None,
             grader_feedback=None,
             step_number=0,
+            num_bugs=scenario.num_bugs,
             done=False,
             reward=None,
         )
@@ -113,10 +120,7 @@ class MlDebugEnvEnvironment(Environment):
         if result.score > self._state.current_score:
             self._state.current_score = result.score
 
-        done = (
-            result.score >= 0.95
-            or self._state.step_count >= MAX_STEPS
-        )
+        done = result.score >= 0.95 or self._state.step_count >= MAX_STEPS
 
         return DebugObservation(
             task_id=self._state.task_id,
@@ -127,6 +131,7 @@ class MlDebugEnvEnvironment(Environment):
             grader_score=result.score,
             grader_feedback=result.feedback,
             step_number=self._state.step_count,
+            num_bugs=self._current_scenario.num_bugs,
             done=done,
             reward=result.score,
         )
@@ -146,13 +151,10 @@ class MlDebugEnvEnvironment(Environment):
             name="ML Debugging Environment",
             description=(
                 "An RL environment where agents debug broken PyTorch training scripts. "
-                "Six tasks of increasing difficulty: shape mismatch (easy), "
-                "training collapse (medium), wrong device (medium), "
-                "gradient not zeroed (medium-hard), data leakage (hard), "
-                "and missing eval mode (hard). "
-                "Agents receive a buggy script and must return a corrected version. "
-                "The grader executes the fix and scores 0.01–0.99 with partial credit."
+                "Eight tasks: six single-bug (easy→hard) and two compound double-bug tasks (expert). "
+                "Graders execute fixed code in a subprocess — no shortcuts. "
+                "Multi-turn episodes with grader feedback. Accepts 'other' as bug_type for open-ended debugging."
             ),
-            version="2.0.0",
+            version="3.0.0",
             author="ml-debug-env",
         )

@@ -13,6 +13,8 @@ from bug_generator import (
     TASK_WRONG_DEVICE,
     TASK_GRADIENT_NOT_ZEROED,
     TASK_MISSING_EVAL_MODE,
+    TASK_COMPOUND_SHAPE_DEVICE,
+    TASK_COMPOUND_LEAKAGE_EVAL,
 )
 from grader import grade
 
@@ -26,22 +28,25 @@ SUCCESS_THRESHOLD = 0.95
 
 SYSTEM_PROMPT = """You are an expert ML engineer specializing in debugging PyTorch training code.
 You must respond with valid JSON in exactly this format:
-{"bug_type": "<EXACT value from the list below>", "diagnosis": "<clear explanation of root cause>", "fixed_code": "<complete corrected Python script>"}
+{"bug_type": "<EXACT value from list>", "diagnosis": "<clear explanation>", "fixed_code": "<complete corrected Python script>"}
 
-bug_type MUST be exactly one of these strings, no other value is valid:
+bug_type MUST be exactly one of these strings:
 - shape_mismatch
 - training_collapse
 - data_leakage
 - wrong_device
 - gradient_not_zeroed
 - missing_eval_mode
+- compound_shape_device
+- compound_leakage_eval
 - other
 
+For compound tasks (compound_shape_device, compound_leakage_eval): fix ALL bugs described.
 Rules:
 - fixed_code must be the COMPLETE script with all imports. Runnable as-is.
 - No markdown fences inside JSON values.
 - No text outside the JSON object.
-- If you see grader feedback, use it to correct your previous attempt."""
+- If you see grader feedback from a previous attempt, use it to improve your fix."""
 
 
 def log_start(task: str, env: str, model: str) -> None:
@@ -50,8 +55,7 @@ def log_start(task: str, env: str, model: str) -> None:
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
-    done_val = str(done).lower()
-    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_val}", flush=True)
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
@@ -62,8 +66,8 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
 def call_llm(client: OpenAI, task_description: str, buggy_code: str, error_output: str, feedback: Optional[str] = None) -> dict:
     user_content = f"Task: {task_description}\n\nBroken script:\n```python\n{buggy_code}\n```\n\nFailure observed:\n{error_output}"
     if feedback:
-        user_content += f"\n\nPrevious attempt grader feedback:\n{feedback}\n\nFix the remaining issues and return corrected JSON."
-    user_content += "\n\nIMPORTANT: The encoder outputs a tensor. The classifier input dim must MATCH the encoder output dim exactly. Check what the last encoder layer outputs and use that exact number for nn.Linear input."
+        user_content += f"\n\nGrader feedback from previous attempt:\n{feedback}\n\nUse this feedback to improve your fix."
+    user_content += "\n\nRespond with JSON only."
 
     response = client.chat.completions.create(
         model=MODEL_NAME,
@@ -71,7 +75,7 @@ def call_llm(client: OpenAI, task_description: str, buggy_code: str, error_outpu
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
         ],
-        temperature=0.0,
+        temperature=0.1,
         max_tokens=2048,
         response_format={"type": "json_object"},
     )
@@ -139,6 +143,8 @@ def main():
         TASK_WRONG_DEVICE,
         TASK_GRADIENT_NOT_ZEROED,
         TASK_MISSING_EVAL_MODE,
+        TASK_COMPOUND_SHAPE_DEVICE,
+        TASK_COMPOUND_LEAKAGE_EVAL,
     ]
 
     all_scores: List[float] = []
@@ -148,8 +154,6 @@ def main():
         success = best_score >= SUCCESS_THRESHOLD
         log_end(success=success, steps=steps, score=best_score, rewards=rewards)
         all_scores.append(best_score)
-
-    print(f"\n[SUMMARY] tasks={len(tasks)} avg_score={sum(all_scores)/len(all_scores):.3f}", flush=True)
 
 
 if __name__ == "__main__":
