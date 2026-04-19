@@ -1,8 +1,8 @@
 import ast
+import os
 import subprocess
 import sys
 import tempfile
-import os
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -15,10 +15,11 @@ class GradeResult:
     score: float
     feedback: str
     execution_output: str
+    reasoning_reward: float = 0.0
+    reasoning_feedback: str = ""
 
 
 def grade(action_bug_type: str, action_diagnosis: str, fixed_code: str, scenario: BugScenario) -> GradeResult:
-    # "other" skips bug type check — goes straight to execution-based scoring
     type_correct = _check_bug_type(action_bug_type, scenario.correct_bug_type)
     if not type_correct:
         return GradeResult(
@@ -29,68 +30,183 @@ def grade(action_bug_type: str, action_diagnosis: str, fixed_code: str, scenario
                 "Re-examine the code and error output carefully."
             ),
             execution_output="(code not executed — bug type was wrong)",
+            reasoning_reward=0.0,
+            reasoning_feedback="Bug type wrong — no reasoning reward.",
         )
 
     exec_output, ran_ok = _run_code(fixed_code, timeout=40)
 
     if not ran_ok:
+        reasoning_reward, reasoning_feedback = _llm_judge(
+            scenario, action_diagnosis, execution_reward=0.2, fix_succeeded=False
+        )
         return GradeResult(
-            score=0.2,
+            score=min(0.2 + reasoning_reward, 0.99),
             feedback=(
                 "Correct bug type identified. However, your fixed code failed to run. "
                 f"Execution output:\n{exec_output}"
             ),
             execution_output=exec_output,
+            reasoning_reward=reasoning_reward,
+            reasoning_feedback=reasoning_feedback,
         )
 
     completed = _check_training_completed(exec_output, scenario.task_id)
     if not completed:
+        reasoning_reward, reasoning_feedback = _llm_judge(
+            scenario, action_diagnosis, execution_reward=0.4, fix_succeeded=False
+        )
         return GradeResult(
-            score=0.4,
+            score=min(0.4 + reasoning_reward, 0.99),
             feedback=(
                 "Correct bug type. Code ran but training did not complete successfully. "
                 f"Execution output:\n{exec_output}"
             ),
             execution_output=exec_output,
+            reasoning_reward=reasoning_reward,
+            reasoning_feedback=reasoning_feedback,
         )
 
     fix_valid, fix_feedback = _verify_fix(fixed_code, scenario, exec_output)
     if not fix_valid:
+        reasoning_reward, reasoning_feedback = _llm_judge(
+            scenario, action_diagnosis, execution_reward=0.6, fix_succeeded=False
+        )
         return GradeResult(
-            score=0.6,
+            score=min(0.6 + reasoning_reward, 0.99),
             feedback=(
                 "Correct bug type. Code runs and training completes. "
                 f"However, the fix does not fully resolve the root cause: {fix_feedback}\n"
                 f"Execution output:\n{exec_output}"
             ),
             execution_output=exec_output,
+            reasoning_reward=reasoning_reward,
+            reasoning_feedback=reasoning_feedback,
         )
 
     success, success_feedback = _check_success_signal(scenario.task_id, fixed_code, exec_output)
     if not success:
+        reasoning_reward, reasoning_feedback = _llm_judge(
+            scenario, action_diagnosis, execution_reward=0.8, fix_succeeded=True
+        )
         return GradeResult(
-            score=0.8,
+            score=min(0.8 + reasoning_reward, 0.99),
             feedback=(
                 "Correct bug type. Code runs. Fix is valid. "
                 f"But the expected success signal was not detected: {success_feedback}\n"
                 f"Execution output:\n{exec_output}"
             ),
             execution_output=exec_output,
+            reasoning_reward=reasoning_reward,
+            reasoning_feedback=reasoning_feedback,
         )
 
+    reasoning_reward, reasoning_feedback = _llm_judge(
+        scenario, action_diagnosis, execution_reward=0.99, fix_succeeded=True
+    )
+    final_score = min(0.99 + reasoning_reward, 0.99)
+
     return GradeResult(
-        score=0.99,
+        score=final_score,
         feedback=(
             "Perfect fix. Bug type correct, code runs cleanly, "
             "training completes, and success signal confirmed.\n"
+            f"Reasoning quality: {reasoning_feedback}\n"
             f"Execution output:\n{exec_output}"
         ),
         execution_output=exec_output,
+        reasoning_reward=reasoning_reward,
+        reasoning_feedback=reasoning_feedback,
     )
 
 
+def _llm_judge(
+    scenario: BugScenario,
+    diagnosis: str,
+    execution_reward: float,
+    fix_succeeded: bool,
+) -> tuple[float, str]:
+    """
+    LLM judge for reasoning quality.
+    Returns (reasoning_reward: 0.0-0.15, feedback: str).
+    Only called if GROQ_API_KEY is available — gracefully skips otherwise.
+    Reasoning reward is capped at 0.15 so execution reward dominates.
+    Final score = min(execution_reward + reasoning_reward, 0.99).
+    """
+    api_key = (
+        os.environ.get("GROQ_API_KEY") or
+        os.environ.get("HF_TOKEN") or
+        os.environ.get("API_KEY", "")
+    ).strip()
+
+    if not api_key or not diagnosis or len(diagnosis.strip()) < 10:
+        return 0.0, "No reasoning reward — diagnosis empty or API key not set."
+
+    try:
+        import httpx
+        prompt = f"""You are evaluating an AI agent's diagnosis of a PyTorch bug.
+
+Task: {scenario.task_id}
+Correct bug type: {scenario.correct_bug_type}
+Solution hint: {scenario.solution_hint}
+
+Agent's diagnosis:
+"{diagnosis}"
+
+Fix succeeded: {fix_succeeded}
+
+Score the diagnosis on these criteria (be strict):
+1. Root cause identified correctly? (0-1)
+2. Explains WHY the bug causes the failure mechanistically? (0-1)  
+3. Specific and actionable (not vague)? (0-1)
+
+Respond with JSON only:
+{{"root_cause_score": 0.0, "mechanism_score": 0.0, "specificity_score": 0.0, "reasoning": "one sentence"}}"""
+
+        response = httpx.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.0,
+                "max_tokens": 200,
+                "response_format": {"type": "json_object"},
+            },
+            timeout=15.0,
+        )
+
+        if response.status_code != 200:
+            return 0.0, f"Judge API error {response.status_code} — no reasoning reward."
+
+        import json
+        data = response.json()
+        content = data["choices"][0]["message"]["content"]
+        scores = json.loads(content)
+
+        rc = float(scores.get("root_cause_score", 0.0))
+        mech = float(scores.get("mechanism_score", 0.0))
+        spec = float(scores.get("specificity_score", 0.0))
+        reasoning_text = scores.get("reasoning", "")
+
+        raw = (rc * 0.4 + mech * 0.4 + spec * 0.2)
+        reward = round(min(raw * 0.15, 0.15), 4)
+
+        feedback = (
+            f"Reasoning reward: {reward:.4f}/0.15 "
+            f"(root_cause={rc:.1f}, mechanism={mech:.1f}, specificity={spec:.1f}). "
+            f"Judge: {reasoning_text}"
+        )
+        return reward, feedback
+
+    except Exception as e:
+        return 0.0, f"Judge unavailable ({e}) — no reasoning reward applied."
+
+
 def _check_bug_type(submitted: str, correct: str) -> bool:
-    # "other" always passes — execution-based scoring handles it
     submitted_clean = submitted.strip().lower().replace(" ", "_").replace("-", "_")
     if submitted_clean == "other":
         return True
@@ -145,12 +261,7 @@ def _run_code(code: str, timeout: int = 40) -> tuple[str, bool]:
 
     python_exe = os.environ.get("PYTHON_EXEC")
     if not python_exe:
-        server_dir = os.path.dirname(os.path.abspath(__file__))
-        project_dir = os.path.dirname(server_dir)
-        candidate = os.path.join(project_dir, ".venv", "Scripts", "python.exe")
-        if not os.path.exists(candidate):
-            candidate = os.path.join(project_dir, ".venv", "bin", "python")
-        python_exe = candidate if os.path.exists(candidate) else sys.executable
+        python_exe = sys.executable
 
     try:
         result = subprocess.run(
@@ -175,7 +286,6 @@ def _run_code(code: str, timeout: int = 40) -> tuple[str, bool]:
 
 
 def _run_code_twice(code: str) -> tuple[str, str, bool]:
-    """Run code twice and return both outputs. Used for determinism checks."""
     out1, ok1 = _run_code(code, timeout=40)
     out2, ok2 = _run_code(code, timeout=40)
     return out1, out2, (ok1 and ok2)
@@ -199,7 +309,6 @@ def _check_training_completed(output: str, task_id: str) -> bool:
 
 
 def _zero_grad_before_backward_ast(code: str) -> bool:
-    """Use AST to verify optimizer.zero_grad() appears before loss.backward() in the loop."""
     try:
         tree = ast.parse(code)
         for node in ast.walk(tree):
@@ -216,7 +325,6 @@ def _zero_grad_before_backward_ast(code: str) -> bool:
                 if zero_grad_idx is not None and backward_idx is not None:
                     if zero_grad_idx < backward_idx:
                         return True
-        # Also check nested loops
         for node in ast.walk(tree):
             if isinstance(node, (ast.For, ast.While)):
                 for child in ast.walk(node):
@@ -235,7 +343,6 @@ def _zero_grad_before_backward_ast(code: str) -> bool:
                                 return True
         return False
     except Exception:
-        # AST parse failed — fall back to string check
         return "optimizer.zero_grad()" in code
 
 
@@ -253,8 +360,6 @@ def _verify_fix(fixed_code: str, scenario: BugScenario, exec_output: str) -> tup
     task = scenario.task_id
 
     if task == "shape_mismatch":
-        # Code runs and trains — shape is fixed by definition
-        # Just verify no shape error in output
         if "cannot be multiplied" in exec_output.lower():
             return False, "Shape mismatch error still present in execution output."
         return True, ""
@@ -275,14 +380,12 @@ def _verify_fix(fixed_code: str, scenario: BugScenario, exec_output: str) -> tup
         return True, ""
 
     elif task == "data_leakage":
-        # Behavioral check: accuracy should be in realistic range (not suspiciously high)
         acc = _extract_metric(exec_output, r"accuracy[:\s]+([\d.]+)")
         if acc is not None and acc > 0.97:
             return False, f"Accuracy {acc:.4f} still suspiciously high — leakage may remain."
         mse = _extract_metric(exec_output, r"mse[:\s]+([\d.]+)")
         if mse is not None and mse < 0.04:
             return False, f"MSE {mse:.4f} still suspiciously low — leakage may remain."
-        # Code check: no bad normalization pattern
         bad_patterns = [
             r"mean\s*=\s*[Xx]_raw\.mean",
             r"full_mean\s*=\s*[Xx]_raw\.mean",
@@ -304,34 +407,29 @@ def _verify_fix(fixed_code: str, scenario: BugScenario, exec_output: str) -> tup
     elif task == "gradient_not_zeroed":
         if "nan" in exec_output.lower():
             return False, "Loss is still NaN — gradients may still be accumulating."
-        # AST-based check: zero_grad must appear before backward in loop body
         if not _zero_grad_before_backward_ast(fixed_code):
             return False, "optimizer.zero_grad() not found before loss.backward() in the loop."
         return True, ""
 
     elif task == "missing_eval_mode":
-        # Behavioral check: run fixed code twice, outputs must be identical
         out1, out2, both_ran = _run_code_twice(fixed_code)
         if not both_ran:
             return False, "Fixed code failed to run twice cleanly."
-        # Extract metrics from both runs
         acc1 = _extract_metric(out1, r"accuracy[:\s]+([\d.]+)")
         acc2 = _extract_metric(out2, r"accuracy[:\s]+([\d.]+)")
         mse1 = _extract_metric(out1, r"mse[:\s]+([\d.]+)")
         mse2 = _extract_metric(out2, r"mse[:\s]+([\d.]+)")
         if acc1 is not None and acc2 is not None:
             if abs(acc1 - acc2) > 0.02:
-                return False, f"Evaluation still non-deterministic: accuracy {acc1:.4f} vs {acc2:.4f} across two runs. model.eval() may be missing or ineffective."
+                return False, f"Evaluation still non-deterministic: accuracy {acc1:.4f} vs {acc2:.4f}."
         if mse1 is not None and mse2 is not None:
             if abs(mse1 - mse2) > 0.05:
-                return False, f"Evaluation still non-deterministic: MSE {mse1:.4f} vs {mse2:.4f} across two runs."
-        # Also check string presence as backup
+                return False, f"Evaluation still non-deterministic: MSE {mse1:.4f} vs {mse2:.4f}."
         if "model.eval()" not in fixed_code:
             return False, "model.eval() is missing before the evaluation block."
         return True, ""
 
     elif task == "compound_shape_device":
-        # Must fix BOTH: shape mismatch AND device placement
         if "cannot be multiplied" in exec_output.lower():
             return False, "Shape mismatch error still present — Bug 1 not fully fixed."
         if "expected all tensors" in exec_output.lower():
@@ -342,8 +440,6 @@ def _verify_fix(fixed_code: str, scenario: BugScenario, exec_output: str) -> tup
         return True, ""
 
     elif task == "compound_leakage_eval":
-        # Must fix BOTH: data leakage AND missing eval mode
-        # Check 1: no bad normalization pattern
         bad_patterns = [
             r"mean\s*=\s*[Xx]_raw\.mean",
             r"full_mean\s*=\s*[Xx]_raw\.mean",
@@ -352,7 +448,6 @@ def _verify_fix(fixed_code: str, scenario: BugScenario, exec_output: str) -> tup
         for pat in bad_patterns:
             if re.search(pat, fixed_code):
                 return False, "Data leakage still present — normalization uses full dataset stats."
-        # Check 2: behavioral determinism test
         out1, out2, both_ran = _run_code_twice(fixed_code)
         if not both_ran:
             return False, "Fixed code failed to run twice cleanly."
@@ -360,8 +455,7 @@ def _verify_fix(fixed_code: str, scenario: BugScenario, exec_output: str) -> tup
         acc2 = _extract_metric(out2, r"accuracy[:\s]+([\d.]+)")
         if acc1 is not None and acc2 is not None:
             if abs(acc1 - acc2) > 0.02:
-                return False, f"Eval still non-deterministic: {acc1:.4f} vs {acc2:.4f}. model.eval() may be missing."
-        # Check 3: accuracy not suspiciously high (leakage check)
+                return False, f"Eval still non-deterministic: {acc1:.4f} vs {acc2:.4f}."
         if acc1 is not None and acc1 > 0.97:
             return False, f"Accuracy {acc1:.4f} still suspiciously high — data leakage may remain."
         if "model.eval()" not in fixed_code:

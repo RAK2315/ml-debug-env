@@ -1,6 +1,12 @@
+import ast
+import os
 import random
-from dataclasses import dataclass
-from typing import Optional
+import re
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass, field
+from typing import Optional, List
 
 
 @dataclass
@@ -12,6 +18,7 @@ class BugScenario:
     correct_bug_type: str
     solution_hint: str
     num_bugs: int = 1
+    alert: str = ""
 
 
 TASK_SHAPE_MISMATCH = "shape_mismatch"
@@ -48,6 +55,8 @@ COMPOUND_TASKS = [
     TASK_COMPOUND_LEAKAGE_EVAL,
 ]
 
+AVAILABLE_TOOLS = ["run_code", "get_traceback", "inspect_gradients", "print_shapes", "view_source"]
+
 
 def get_scenario(task_id: str, seed: Optional[int] = None) -> BugScenario:
     rng = random.Random(seed)
@@ -77,8 +86,253 @@ def get_random_task(seed: Optional[int] = None) -> str:
 
 
 # ──────────────────────────────────────────────────────────────
+# TOOL EXECUTION ENGINE
+# These functions implement the 5 diagnostic tools available
+# to the agent in partial observability mode.
+# ──────────────────────────────────────────────────────────────
+
+def _get_python_exe() -> str:
+    python_exe = os.environ.get("PYTHON_EXEC")
+    if not python_exe:
+        server_dir = os.path.dirname(os.path.abspath(__file__))
+        project_dir = os.path.dirname(server_dir)
+        candidate = os.path.join(project_dir, ".venv", "Scripts", "python.exe")
+        if not os.path.exists(candidate):
+            candidate = os.path.join(project_dir, ".venv", "bin", "python")
+        python_exe = candidate if os.path.exists(candidate) else sys.executable
+    return python_exe
+
+
+def _run_in_subprocess(code: str, timeout: int = 40) -> tuple[str, bool, str]:
+    """Run code, return (output, success, stderr_only)."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
+        f.write(code)
+        tmp_path = f.name
+    try:
+        result = subprocess.run(
+            [_get_python_exe(), tmp_path],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        )
+        combined = (result.stdout + result.stderr).strip()
+        return combined, result.returncode == 0, result.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return f"Execution timed out after {timeout}s.", False, ""
+    except Exception as e:
+        return f"Execution error: {e}", False, ""
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
+def execute_tool(tool_name: str, scenario: BugScenario) -> str:
+    """
+    Execute a diagnostic tool against the buggy scenario.
+    Returns a string result to show the agent.
+    """
+    if tool_name == "run_code":
+        return _tool_run_code(scenario.buggy_code)
+    elif tool_name == "get_traceback":
+        return _tool_get_traceback(scenario.buggy_code)
+    elif tool_name == "inspect_gradients":
+        return _tool_inspect_gradients(scenario.buggy_code, scenario.task_id)
+    elif tool_name == "print_shapes":
+        return _tool_print_shapes(scenario.buggy_code, scenario.task_id)
+    elif tool_name == "view_source":
+        return _tool_view_source(scenario.buggy_code)
+    else:
+        return f"Unknown tool: {tool_name}. Available tools: {AVAILABLE_TOOLS}"
+
+
+def _tool_run_code(buggy_code: str) -> str:
+    output, success, _ = _run_in_subprocess(buggy_code, timeout=30)
+    status = "COMPLETED" if success else "FAILED"
+    lines = output.split("\n")
+    truncated = "\n".join(lines[:40])
+    if len(lines) > 40:
+        truncated += f"\n... ({len(lines) - 40} more lines truncated)"
+    return f"[run_code] Status: {status}\n\n{truncated}"
+
+
+def _tool_get_traceback(buggy_code: str) -> str:
+    output, success, stderr = _run_in_subprocess(buggy_code, timeout=30)
+    if success:
+        return "[get_traceback] Code ran without error. No traceback available."
+    if not stderr and not output:
+        return "[get_traceback] No traceback captured."
+    tb_text = stderr if stderr else output
+    lines = tb_text.split("\n")
+    truncated = "\n".join(lines[:50])
+    return f"[get_traceback] Full traceback:\n\n{truncated}"
+
+
+def _tool_inspect_gradients(buggy_code: str, task_id: str) -> str:
+    """
+    Inject gradient norm logging before backward pass, run one batch, report per-layer norms.
+    For tasks where code crashes before backward (shape_mismatch, wrong_device), returns crash info.
+    For silent bugs (leakage, eval_mode), returns gradient info anyway — agent must interpret.
+    """
+    instrumented = _inject_gradient_logging(buggy_code)
+    output, success, _ = _run_in_subprocess(instrumented, timeout=35)
+
+    if not success and "GRAD_NORMS" not in output:
+        lines = output.split("\n")[:20]
+        return (
+            "[inspect_gradients] Code crashed before gradients could be measured.\n"
+            "Partial output:\n" + "\n".join(lines)
+        )
+
+    lines = output.split("\n")
+    grad_lines = [l for l in lines if "GRAD_NORM" in l or "grad_norm" in l.lower() or "GRADIENT" in l]
+    if not grad_lines:
+        return (
+            "[inspect_gradients] Gradient injection ran but no gradient norms captured.\n"
+            "This may indicate gradients are not flowing (no backward call reached).\n"
+            f"Output excerpt:\n{chr(10).join(lines[:15])}"
+        )
+    return "[inspect_gradients] Per-layer gradient norms (first batch):\n\n" + "\n".join(grad_lines[:30])
+
+
+def _inject_gradient_logging(code: str) -> str:
+    """
+    Inject gradient norm reporting after the first backward() call.
+    Wraps the training loop to break after 1 batch and report norms.
+    """
+    injection = '''
+import torch as _torch_grad_tool
+
+_GRAD_BATCH_COUNT = 0
+_GRAD_ORIG_backward = _torch_grad_tool.Tensor.backward
+
+def _patched_backward(self, *args, **kwargs):
+    global _GRAD_BATCH_COUNT
+    _GRAD_ORIG_backward(self, *args, **kwargs)
+    _GRAD_BATCH_COUNT += 1
+    if _GRAD_BATCH_COUNT == 1:
+        # find all parameters with gradients in scope
+        import gc
+        for obj in gc.get_objects():
+            if isinstance(obj, _torch_grad_tool.nn.Module):
+                print("GRAD_NORMS:")
+                for name, param in obj.named_parameters():
+                    if param.grad is not None:
+                        norm = param.grad.norm().item()
+                        print(f"  GRAD_NORM layer={name} norm={norm:.6f}")
+                break
+
+_torch_grad_tool.Tensor.backward = _patched_backward
+'''
+    return injection + "\n" + code
+
+
+def _tool_print_shapes(buggy_code: str, task_id: str) -> str:
+    """
+    Inject shape printing at each linear layer, run one forward pass, report shapes.
+    """
+    instrumented = _inject_shape_logging(buggy_code)
+    output, success, _ = _run_in_subprocess(instrumented, timeout=35)
+
+    lines = output.split("\n")
+    shape_lines = [l for l in lines if "SHAPE" in l or "shape" in l.lower()]
+
+    if not shape_lines and not success:
+        error_lines = [l for l in lines if "Error" in l or "error" in l]
+        return (
+            "[print_shapes] Code crashed before shapes could be captured.\n"
+            "Error:\n" + "\n".join(error_lines[:10]) +
+            "\nFull output excerpt:\n" + "\n".join(lines[:20])
+        )
+
+    if not shape_lines:
+        return (
+            "[print_shapes] Shape hook ran but no shapes captured.\n"
+            f"Output:\n{chr(10).join(lines[:20])}"
+        )
+
+    return "[print_shapes] Tensor shapes at each layer (first batch):\n\n" + "\n".join(shape_lines[:40])
+
+
+def _inject_shape_logging(code: str) -> str:
+    """Register forward hooks on all Linear layers to print input/output shapes."""
+    injection = '''
+import torch as _torch_shape_tool
+
+_shape_hooks = []
+
+def _register_shape_hooks(model):
+    def make_hook(name):
+        def hook(module, input, output):
+            in_shape = tuple(input[0].shape) if input else "unknown"
+            out_shape = tuple(output.shape)
+            print(f"SHAPE layer={name} in={in_shape} out={out_shape}")
+        return hook
+    for name, module in model.named_modules():
+        if isinstance(module, (_torch_shape_tool.nn.Linear, _torch_shape_tool.nn.Conv2d)):
+            h = module.register_forward_hook(make_hook(name))
+            _shape_hooks.append(h)
+
+_orig_Module_init = _torch_shape_tool.nn.Module.__init__
+
+_registered_models = set()
+
+def _patched_init(self, *args, **kwargs):
+    _orig_Module_init(self, *args, **kwargs)
+
+_torch_shape_tool.nn.Module.__init__ = _patched_init
+
+import atexit as _atexit_shape
+
+def _cleanup_hooks():
+    for h in _shape_hooks:
+        h.remove()
+
+_atexit_shape.register(_cleanup_hooks)
+
+# Patch Module.to() and Module.forward to auto-register hooks on first forward
+_orig_forward = _torch_shape_tool.nn.Module.__call__
+_hooked_ids = set()
+
+def _auto_hook_call(self, *args, **kwargs):
+    mid = id(self)
+    if mid not in _hooked_ids and len(list(self.children())) > 0:
+        _register_shape_hooks(self)
+        _hooked_ids.add(mid)
+    return _orig_forward(self, *args, **kwargs)
+
+_torch_shape_tool.nn.Module.__call__ = _auto_hook_call
+'''
+    return injection + "\n" + code
+
+
+def _tool_view_source(buggy_code: str) -> str:
+    lines = buggy_code.split("\n")
+    numbered = "\n".join(f"{i+1:3d} | {line}" for i, line in enumerate(lines))
+    return f"[view_source] Full buggy script ({len(lines)} lines):\n\n{numbered}"
+
+
+# ──────────────────────────────────────────────────────────────
+# ALERT MESSAGES — minimal failure notice shown on reset()
+# No code, no traceback, no hints. Just what an on-call engineer sees.
+# ──────────────────────────────────────────────────────────────
+
+ALERTS = {
+    TASK_SHAPE_MISMATCH: "Training job crashed immediately. No epochs completed. Exit code 1.",
+    TASK_TRAINING_COLLAPSE: "Training job completed 5 epochs. Final loss: nan. Model did not converge.",
+    TASK_DATA_LEAKAGE: "Training job completed successfully. Test accuracy: 96.5%. Review requested.",
+    TASK_WRONG_DEVICE: "Training job crashed on first forward pass. Exit code 1.",
+    TASK_GRADIENT_NOT_ZEROED: "Training job failed. Loss exploded to nan by epoch 4. Exit code 0.",
+    TASK_MISSING_EVAL_MODE: "Training completed. Evaluation metrics unstable across repeated runs.",
+    TASK_COMPOUND_SHAPE_DEVICE: "Training job crashed immediately. Multiple errors detected. Exit code 1.",
+    TASK_COMPOUND_LEAKAGE_EVAL: "Training completed. Metrics look suspicious and vary between evaluation runs.",
+}
+
+
+# ──────────────────────────────────────────────────────────────
 # TASK 1 — Shape Mismatch (Easy)
-# 3 structural variants: MLP, DeepNet, Autoencoder
 # ──────────────────────────────────────────────────────────────
 
 def _shape_mismatch_scenario(rng: random.Random) -> BugScenario:
@@ -240,6 +494,7 @@ print("Training finished")
         error_output=error_output,
         correct_bug_type="shape_mismatch",
         solution_hint=solution_hint,
+        alert=ALERTS[TASK_SHAPE_MISMATCH],
     )
 
 
@@ -365,6 +620,7 @@ print("Training finished")
         error_output=error_output,
         correct_bug_type="training_collapse",
         solution_hint=solution_hint,
+        alert=ALERTS[TASK_TRAINING_COLLAPSE],
     )
 
 
@@ -512,12 +768,12 @@ print("Training finished")
         error_output=error_output,
         correct_bug_type="data_leakage",
         solution_hint=solution_hint,
+        alert=ALERTS[TASK_DATA_LEAKAGE],
     )
 
 
 # ──────────────────────────────────────────────────────────────
 # TASK 4 — Wrong Device (Medium)
-# Fixed: bug exists on CPU-only machines via explicit device forcing
 # ──────────────────────────────────────────────────────────────
 
 def _wrong_device_scenario(rng: random.Random) -> BugScenario:
@@ -548,7 +804,6 @@ y = torch.randint(0, {num_classes}, (200,))
 dataset = TensorDataset(X, y)
 loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
-# BUG: model moved to device but data batches never moved to device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = Classifier().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -556,7 +811,6 @@ criterion = nn.CrossEntropyLoss().to(device)
 
 for epoch in range(3):
     for xb, yb in loader:
-        # xb and yb are still on CPU — never moved to device
         optimizer.zero_grad()
         pred = model(xb)
         loss = criterion(pred, yb)
@@ -585,12 +839,12 @@ print("Training finished")
         error_output=error_output,
         correct_bug_type="wrong_device",
         solution_hint="move xb and yb to device inside the training loop: xb, yb = xb.to(device), yb.to(device)",
+        alert=ALERTS[TASK_WRONG_DEVICE],
     )
 
 
 # ──────────────────────────────────────────────────────────────
 # TASK 5 — Gradient Not Zeroed (Medium-Hard)
-# 2 structural variants: regression MLP, classification ConvNet
 # ──────────────────────────────────────────────────────────────
 
 def _gradient_not_zeroed_scenario(rng: random.Random) -> BugScenario:
@@ -706,12 +960,12 @@ print("Training finished")
         error_output=error_output,
         correct_bug_type="gradient_not_zeroed",
         solution_hint="optimizer.zero_grad() is missing before loss.backward(); gradients accumulate causing explosion",
+        alert=ALERTS[TASK_GRADIENT_NOT_ZEROED],
     )
 
 
 # ──────────────────────────────────────────────────────────────
 # TASK 6 — Missing Eval Mode (Hard)
-# 2 structural variants: classifier, regressor
 # ──────────────────────────────────────────────────────────────
 
 def _missing_eval_mode_scenario(rng: random.Random) -> BugScenario:
@@ -851,12 +1105,12 @@ print("Training finished")
         error_output=error_output,
         correct_bug_type="missing_eval_mode",
         solution_hint=f"model.eval() and torch.no_grad() must be called before evaluation; dropout p={dropout_p} stays active in train mode",
+        alert=ALERTS[TASK_MISSING_EVAL_MODE],
     )
 
 
 # ──────────────────────────────────────────────────────────────
 # TASK 7 — Compound: Shape Mismatch + Wrong Device (Medium-Hard)
-# TWO bugs. Agent must identify and fix BOTH.
 # ──────────────────────────────────────────────────────────────
 
 def _compound_shape_device_scenario(rng: random.Random) -> BugScenario:
@@ -880,7 +1134,6 @@ class MultiLayerNet(nn.Module):
             nn.Linear({hidden_size}, {hidden_size}),
             nn.ReLU(),
         )
-        # BUG 1: classifier expects {wrong_size} but backbone outputs {hidden_size}
         self.classifier = nn.Linear({wrong_size}, {num_classes})
 
     def forward(self, x):
@@ -892,7 +1145,6 @@ y = torch.randint(0, {num_classes}, (300,))
 dataset = TensorDataset(X, y)
 loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
-# BUG 2: model moved to device but data never moved
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = MultiLayerNet().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -914,12 +1166,9 @@ print("Training finished")
         "This script has TWO bugs that must both be fixed.\n\n"
         f"Bug 1 — Shape mismatch:\n"
         f"  RuntimeError: mat1 and mat2 shapes cannot be multiplied "
-        f"({hidden_size} cannot be broadcast to {wrong_size})\n"
-        f"  The classifier expects input size {wrong_size} "
-        f"but backbone outputs {hidden_size}.\n\n"
+        f"({hidden_size} cannot be broadcast to {wrong_size})\n\n"
         "Bug 2 — Device mismatch:\n"
-        "  RuntimeError: Expected all tensors to be on the same device!\n"
-        "  Model is on target device but data batches remain on CPU.\n\n"
+        "  RuntimeError: Expected all tensors to be on the same device!\n\n"
         "Fix BOTH bugs. Script should train 3 epochs without error."
     )
 
@@ -935,13 +1184,12 @@ print("Training finished")
         correct_bug_type="compound_shape_device",
         solution_hint=f"fix 1: classifier input must be {hidden_size} not {wrong_size}; fix 2: move xb and yb to device in training loop",
         num_bugs=2,
+        alert=ALERTS[TASK_COMPOUND_SHAPE_DEVICE],
     )
 
 
 # ──────────────────────────────────────────────────────────────
 # TASK 8 — Compound: Data Leakage + Missing Eval Mode (Expert)
-# TWO silent bugs. No crashes. Everything looks fine.
-# Hardest task — frontier models score ~0.4-0.6
 # ──────────────────────────────────────────────────────────────
 
 def _compound_leakage_eval_scenario(rng: random.Random) -> BugScenario:
@@ -979,7 +1227,6 @@ X_raw = torch.randn(N, D)
 true_weights = torch.randn(D, C)
 y_all = (X_raw @ true_weights).argmax(dim=1)
 
-# BUG 1: normalization computed on full dataset before split
 mean = X_raw.mean(dim=0)
 std = X_raw.std(dim=0) + 1e-8
 X_normalized = (X_raw - mean) / std
@@ -1003,7 +1250,6 @@ for epoch in range(10):
         optimizer.step()
     print(f"Epoch {{epoch+1}} complete")
 
-# BUG 2: model.eval() and torch.no_grad() missing
 test_preds = model(X_test).argmax(dim=1)
 accuracy = (test_preds == y_test).float().mean().item()
 print(f"Test accuracy: {{accuracy:.4f}}")
@@ -1014,15 +1260,9 @@ print("Training finished")
     error_output = (
         "Script runs to completion with no errors.\n"
         "Reported test accuracy: 0.9700 (varies slightly between runs)\n\n"
-        "This script has TWO silent bugs:\n\n"
-        "Bug 1 — Data leakage:\n"
-        "  Normalization statistics computed from entire dataset before train/test split.\n"
-        "  Test set distribution has contaminated preprocessing. Accuracy is inflated.\n\n"
-        "Bug 2 — Missing eval mode:\n"
-        f"  model.eval() not called before evaluation. Dropout(p={dropout_p}) "
-        "remains active causing slightly different predictions each run.\n\n"
-        "Fix BOTH. Fixed version should have lower but trustworthy accuracy "
-        "and produce identical results on repeated evaluation runs."
+        "This script has TWO silent bugs:\n"
+        "Bug 1 — Data leakage: normalization statistics computed from entire dataset before split.\n"
+        f"Bug 2 — Missing eval mode: model.eval() not called; Dropout(p={dropout_p}) active during evaluation."
     )
 
     return BugScenario(
@@ -1038,4 +1278,5 @@ print("Training finished")
         correct_bug_type="compound_leakage_eval",
         solution_hint=f"fix 1: compute mean/std only from X_train after split; fix 2: add model.eval() and torch.no_grad() before evaluation",
         num_bugs=2,
+        alert=ALERTS[TASK_COMPOUND_LEAKAGE_EVAL],
     )
