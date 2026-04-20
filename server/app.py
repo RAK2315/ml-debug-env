@@ -6,6 +6,7 @@ import asyncio
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -244,6 +245,12 @@ async def run_baseline() -> Dict[str, Any]:
         "model": os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct"),
         "note": "Baseline uses multi-turn retry with grader feedback.",
     }
+
+@app.get("/", response_class=HTMLResponse)
+def landing_page():
+    html_path = os.path.join(os.path.dirname(__file__), "landing_page.html")
+    with open(html_path) as f:
+        return f.read()
 
 
 def main():
