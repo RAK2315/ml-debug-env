@@ -56,7 +56,7 @@ By step 150, something changed. The agent stopped calling `view_source` first. I
 
 ### The Curve
 
-![Reward Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_t4_200steps.png)
+![Reward Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_t4_200steps.png.png)
 
 **Run 1 (T4, 200 steps):** 0.024 → 0.190 (+0.166 improvement)
 
