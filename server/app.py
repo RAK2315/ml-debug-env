@@ -246,7 +246,7 @@ async def run_baseline() -> Dict[str, Any]:
         "note": "Baseline uses multi-turn retry with grader feedback.",
     }
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/ui", response_class=HTMLResponse)
 def landing_page():
     html_path = os.path.join(os.path.dirname(__file__), "landing_page.html")
     with open(html_path) as f:
