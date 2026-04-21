@@ -209,7 +209,7 @@ Respond with JSON only:
 def _check_bug_type(submitted: str, correct: str) -> bool:
     submitted_clean = submitted.strip().lower().replace(" ", "_").replace("-", "_")
     if submitted_clean == "other":
-        return True
+        return False
 
     correct_clean = correct.strip().lower()
     aliases = {
@@ -405,10 +405,15 @@ def _verify_fix(fixed_code: str, scenario: BugScenario, exec_output: str) -> tup
         return True, ""
 
     elif task == "gradient_not_zeroed":
-        if "nan" in exec_output.lower():
-            return False, "Loss is still NaN — gradients may still be accumulating."
         if not _zero_grad_before_backward_ast(fixed_code):
             return False, "optimizer.zero_grad() not found before loss.backward() in the loop."
+        if "nan" in exec_output.lower():
+            return False, "Loss is still NaN — gradients may still be accumulating."
+        loss_values = re.findall(r"loss[:\s]+([\d.]+)", exec_output.lower())
+        if len(loss_values) >= 2:
+            first, last = float(loss_values[0]), float(loss_values[-1])
+            if last >= first * 0.95:
+                return False, f"Loss did not decrease: {first:.4f} → {last:.4f}. zero_grad may be missing or ineffective."
         return True, ""
 
     elif task == "missing_eval_mode":
