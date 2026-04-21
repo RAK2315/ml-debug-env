@@ -7,65 +7,105 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
-  .hero { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%); padding: 60px 20px 40px; text-align: center; border-bottom: 1px solid #312e81; }
-  .badge { display: inline-block; background: #4f46e5; color: #c7d2fe; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; margin-bottom: 16px; letter-spacing: 0.5px; }
-  h1 { font-size: 2.8rem; font-weight: 700; color: #fff; margin-bottom: 12px; }
+
+  /* HERO */
+  .hero { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%); padding: 50px 20px 36px; text-align: center; border-bottom: 1px solid #312e81; }
+  .badge { display: inline-block; background: #4f46e5; color: #c7d2fe; font-size: 12px; font-weight: 600; padding: 4px 14px; border-radius: 20px; margin-bottom: 14px; letter-spacing: 0.5px; }
+  h1 { font-size: 2.6rem; font-weight: 700; color: #fff; margin-bottom: 10px; }
   h1 span { color: #818cf8; }
-  .subtitle { font-size: 1.1rem; color: #a5b4fc; max-width: 600px; margin: 0 auto 32px; line-height: 1.6; }
-  .links { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-  .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; transition: all 0.2s; }
+  .subtitle { font-size: 1.05rem; color: #a5b4fc; max-width: 580px; margin: 0 auto 28px; line-height: 1.6; }
+  .hero-links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .btn { padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 600; text-decoration: none; transition: all 0.2s; cursor: pointer; border: none; }
   .btn-primary { background: #4f46e5; color: #fff; }
   .btn-primary:hover { background: #4338ca; }
   .btn-secondary { background: transparent; color: #a5b4fc; border: 1px solid #4f46e5; }
   .btn-secondary:hover { background: #1e1b4b; }
-  .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
-  .alert-demo { background: #1e293b; border: 1px solid #334155; border-left: 4px solid #ef4444; border-radius: 8px; padding: 20px; margin: 40px 0; }
-  .alert-demo .label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-  .alert-demo .message { font-family: monospace; color: #fca5a5; font-size: 15px; }
-  .alert-demo .tools { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
-  .tool-badge { background: #1e3a5f; color: #93c5fd; font-size: 12px; padding: 3px 10px; border-radius: 4px; font-family: monospace; }
-  .section-title { font-size: 1.4rem; font-weight: 700; color: #e2e8f0; margin-bottom: 20px; }
-  .tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 40px; }
-  .task-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 20px; transition: border-color 0.2s; }
+
+  /* LAYOUT */
+  .container { max-width: 1050px; margin: 0 auto; padding: 36px 20px; }
+  .section-title { font-size: 1.3rem; font-weight: 700; color: #e2e8f0; margin-bottom: 16px; margin-top: 40px; }
+  .section-title:first-child { margin-top: 0; }
+
+  /* ALERT DEMO BOX */
+  .alert-box { background: #1e293b; border: 1px solid #334155; border-left: 4px solid #ef4444; border-radius: 8px; padding: 18px 20px; margin-bottom: 12px; }
+  .alert-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .alert-msg { font-family: monospace; color: #fca5a5; font-size: 14px; margin-bottom: 10px; }
+  .tool-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .chip { background: #1e3a5f; color: #93c5fd; font-size: 11px; padding: 3px 10px; border-radius: 4px; font-family: monospace; }
+  .budget { font-size: 12px; color: #64748b; align-self: center; }
+
+  /* INTERACTIVE DEMO */
+  .demo-section { background: #1e293b; border: 1px solid #4f46e5; border-radius: 10px; padding: 24px; margin-bottom: 24px; }
+  .demo-section h3 { color: #818cf8; font-size: 1rem; margin-bottom: 16px; }
+  .demo-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; }
+  .demo-label { font-size: 13px; color: #94a3b8; min-width: 120px; padding-top: 8px; }
+  .demo-controls { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+  select { background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 7px 10px; font-size: 13px; cursor: pointer; }
+  .action-btn { background: #4f46e5; color: #fff; border: none; border-radius: 6px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  .action-btn:hover { background: #4338ca; }
+  .action-btn.tool { background: #0f4c75; }
+  .action-btn.tool:hover { background: #1a6599; }
+  .action-btn.fix-btn { background: #065f46; }
+  .action-btn.fix-btn:hover { background: #047857; }
+  .response-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 14px; font-family: monospace; font-size: 12px; color: #94a3b8; min-height: 60px; max-height: 280px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 10px; }
+  .response-box.success { border-color: #065f46; color: #6ee7b7; }
+  .response-box.error { border-color: #7f1d1d; color: #fca5a5; }
+  .score-display { font-size: 1.8rem; font-weight: 700; color: #818cf8; text-align: center; padding: 10px; }
+
+  /* CURL COMMANDS */
+  .curl-section { margin-bottom: 24px; }
+  .curl-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+  .curl-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: #0f172a; }
+  .curl-title { font-size: 13px; color: #e2e8f0; font-weight: 600; }
+  .copy-btn { background: #334155; color: #94a3b8; border: none; border-radius: 4px; padding: 3px 10px; font-size: 11px; cursor: pointer; transition: all 0.2s; }
+  .copy-btn:hover { background: #4f46e5; color: #fff; }
+  .curl-code { padding: 12px 16px; font-family: monospace; font-size: 12px; color: #93c5fd; overflow-x: auto; white-space: pre; }
+
+  /* TASKS GRID */
+  .tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .task-card { background: #1e293b; border: 1px solid #334155; border-radius: 9px; padding: 16px; transition: border-color 0.2s; }
   .task-card:hover { border-color: #4f46e5; }
-  .task-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-  .task-id { font-family: monospace; font-size: 13px; color: #818cf8; font-weight: 600; }
-  .difficulty { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .task-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .task-id { font-family: monospace; font-size: 12px; color: #818cf8; font-weight: 600; }
+  .diff { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
   .easy { background: #14532d; color: #86efac; }
   .medium { background: #713f12; color: #fde68a; }
   .medium-hard { background: #7c2d12; color: #fdba74; }
   .hard { background: #7f1d1d; color: #fca5a5; }
   .expert { background: #4a044e; color: #f0abfc; }
-  .task-desc { font-size: 13px; color: #94a3b8; line-height: 1.5; }
-  .compound-tag { font-size: 11px; color: #f0abfc; background: #4a044e; padding: 2px 6px; border-radius: 4px; margin-top: 8px; display: inline-block; }
-  .scoring { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 24px; margin-bottom: 40px; }
-  .score-row { display: flex; align-items: center; gap: 16px; padding: 8px 0; border-bottom: 1px solid #1e293b; }
+  .task-desc { font-size: 12px; color: #64748b; line-height: 1.5; }
+  .compound-tag { font-size: 10px; color: #f0abfc; background: #4a044e; padding: 2px 6px; border-radius: 4px; margin-top: 6px; display: inline-block; }
+
+  /* SCORING */
+  .scoring { background: #1e293b; border: 1px solid #334155; border-radius: 9px; padding: 20px; margin-bottom: 24px; }
+  .score-row { display: flex; align-items: center; gap: 14px; padding: 7px 0; border-bottom: 1px solid #0f172a; }
   .score-row:last-child { border-bottom: none; }
-  .score-val { font-family: monospace; font-size: 14px; font-weight: 700; color: #818cf8; min-width: 40px; }
-  .score-bar-wrap { flex: 1; height: 6px; background: #0f172a; border-radius: 3px; overflow: hidden; }
+  .score-val { font-family: monospace; font-size: 13px; font-weight: 700; color: #818cf8; min-width: 38px; }
+  .score-bar-w { flex: 1; height: 5px; background: #0f172a; border-radius: 3px; overflow: hidden; }
   .score-bar { height: 100%; background: linear-gradient(90deg, #4f46e5, #818cf8); border-radius: 3px; }
-  .score-label { font-size: 13px; color: #94a3b8; min-width: 200px; }
-  .tools-section { margin-bottom: 40px; }
-  .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-  .tool-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
-  .tool-name { font-family: monospace; font-size: 13px; color: #93c5fd; font-weight: 600; margin-bottom: 6px; }
-  .tool-desc { font-size: 12px; color: #64748b; line-height: 1.4; }
-  .api-section { margin-bottom: 40px; }
-  .endpoint-list { background: #1e293b; border: 1px solid #334155; border-radius: 10px; overflow: hidden; }
-  .endpoint { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #0f172a; }
-  .endpoint:last-child { border-bottom: none; }
-  .method { font-family: monospace; font-size: 12px; font-weight: 700; min-width: 44px; }
-  .get { color: #86efac; }
-  .post { color: #93c5fd; }
-  .ws { color: #fde68a; }
-  .path { font-family: monospace; font-size: 13px; color: #e2e8f0; min-width: 140px; }
-  .ep-desc { font-size: 13px; color: #64748b; }
-  .try-section { background: #1e293b; border: 1px solid #4f46e5; border-radius: 10px; padding: 24px; margin-bottom: 40px; }
-  .try-section h3 { color: #818cf8; margin-bottom: 16px; }
-  .code-block { background: #0f172a; border-radius: 6px; padding: 16px; font-family: monospace; font-size: 13px; color: #e2e8f0; overflow-x: auto; white-space: pre; line-height: 1.6; }
-  .footer { text-align: center; padding: 40px 20px; border-top: 1px solid #1e293b; color: #475569; font-size: 13px; }
+  .score-lbl { font-size: 12px; color: #64748b; min-width: 180px; }
+
+  /* REWARD CURVE */
+  .curve-section { background: #1e293b; border: 1px solid #334155; border-radius: 9px; padding: 20px; margin-bottom: 24px; text-align: center; }
+  .curve-section img { max-width: 100%; border-radius: 6px; margin: 10px 0; }
+  .curve-stats { display: flex; gap: 24px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .stat { text-align: center; }
+  .stat-val { font-size: 1.4rem; font-weight: 700; color: #818cf8; }
+  .stat-lbl { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+  /* ENDPOINTS */
+  .endpoints { background: #1e293b; border: 1px solid #334155; border-radius: 9px; overflow: hidden; margin-bottom: 24px; }
+  .ep { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid #0f172a; }
+  .ep:last-child { border-bottom: none; }
+  .method { font-family: monospace; font-size: 11px; font-weight: 700; min-width: 40px; }
+  .get { color: #86efac; } .post { color: #93c5fd; } .ws { color: #fde68a; }
+  .path { font-family: monospace; font-size: 12px; color: #e2e8f0; min-width: 130px; }
+  .ep-desc { font-size: 12px; color: #64748b; }
+
+  .footer { text-align: center; padding: 32px 20px; border-top: 1px solid #1e293b; color: #475569; font-size: 12px; }
   .footer a { color: #818cf8; text-decoration: none; }
-  @media (max-width: 600px) { h1 { font-size: 1.8rem; } .tasks-grid { grid-template-columns: 1fr; } }
+
+  @media (max-width: 600px) { h1 { font-size: 1.8rem; } .tasks-grid { grid-template-columns: 1fr; } .demo-row { flex-direction: column; } }
 </style>
 </head>
 <body>
@@ -73,205 +113,332 @@
 <div class="hero">
   <div class="badge">🐛 Meta × PyTorch × Scaler OpenEnv Hackathon 2026</div>
   <h1>ML <span>Debug</span> Env</h1>
-  <p class="subtitle">A partially observable RL environment where AI agents debug broken PyTorch training scripts — using diagnostic tools, not oracles.</p>
-  <div class="links">
-    <a href="/docs" class="btn btn-primary">Try It — Swagger UI</a>
+  <p class="subtitle">A partially observable RL environment where AI agents debug broken PyTorch scripts — using diagnostic tools, not oracles.</p>
+  <div class="hero-links">
+    <a href="/docs" class="btn btn-primary">Swagger UI</a>
     <a href="https://github.com/RAK2315/ml-debug-env" class="btn btn-secondary">GitHub</a>
-    <a href="https://huggingface.co/rak2315/ml-debug-env-blog" class="btn btn-secondary">Blog Post</a>
+    <a href="https://huggingface.co/rak2315/ml-debug-env-blog" class="btn btn-secondary">Blog</a>
+    <a href="https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo.ipynb" class="btn btn-secondary">Training Notebook</a>
   </div>
 </div>
 
 <div class="container">
 
-  <div class="alert-demo">
-    <div class="label">What the agent sees on reset() — no code, no traceback</div>
-    <div class="message">"Training completed. Metrics look suspicious and vary between evaluation runs."</div>
-    <div class="tools">
-      <span class="tool-badge">run_code</span>
-      <span class="tool-badge">get_traceback</span>
-      <span class="tool-badge">inspect_gradients</span>
-      <span class="tool-badge">print_shapes</span>
-      <span class="tool-badge">view_source</span>
-      <span style="font-size:12px;color:#64748b;align-self:center;margin-left:4px;">5 steps total</span>
+  <!-- WHAT AGENT SEES -->
+  <div class="section-title">What The Agent Sees On Reset</div>
+  <div class="alert-box">
+    <div class="alert-label">Alert — no code, no traceback, just this:</div>
+    <div class="alert-msg" id="alert-msg">"Training completed. Metrics look suspicious and vary between evaluation runs."</div>
+    <div class="tool-chips">
+      <span class="chip">run_code</span>
+      <span class="chip">get_traceback</span>
+      <span class="chip">inspect_gradients</span>
+      <span class="chip">print_shapes</span>
+      <span class="chip">view_source</span>
+      <span class="budget">· 5 steps total</span>
     </div>
   </div>
 
-  <div class="section-title">8 Tasks — Easy to Expert</div>
+  <!-- LIVE INTERACTIVE DEMO -->
+  <div class="section-title">🎮 Live Demo — Try It</div>
+  <div class="demo-section">
+    <h3>Step 1 — Reset (start a new episode)</h3>
+    <div class="demo-row">
+      <span class="demo-label">Task:</span>
+      <div class="demo-controls">
+        <select id="task-select">
+          <option value="compound_leakage_eval">compound_leakage_eval (Expert)</option>
+          <option value="compound_shape_device">compound_shape_device (Medium-Hard)</option>
+          <option value="missing_eval_mode">missing_eval_mode (Hard)</option>
+          <option value="data_leakage">data_leakage (Hard)</option>
+          <option value="gradient_not_zeroed">gradient_not_zeroed (Medium-Hard)</option>
+          <option value="wrong_device">wrong_device (Medium)</option>
+          <option value="training_collapse">training_collapse (Medium)</option>
+          <option value="shape_mismatch">shape_mismatch (Easy)</option>
+        </select>
+        <button class="action-btn" onclick="doReset()">POST /reset</button>
+      </div>
+    </div>
+    <div class="response-box" id="reset-response">Click "POST /reset" to start an episode...</div>
+  </div>
+
+  <div class="demo-section">
+    <h3>Step 2 — Inspect (call a diagnostic tool)</h3>
+    <div class="demo-row">
+      <span class="demo-label">Tool:</span>
+      <div class="demo-controls">
+        <select id="tool-select">
+          <option value="run_code">run_code — run the buggy script</option>
+          <option value="get_traceback">get_traceback — full traceback if crashed</option>
+          <option value="inspect_gradients">inspect_gradients — per-layer gradient norms</option>
+          <option value="print_shapes">print_shapes — tensor shapes at each layer</option>
+          <option value="view_source">view_source — reveal full buggy code</option>
+        </select>
+        <button class="action-btn tool" onclick="doInspect()">POST /step (inspect)</button>
+      </div>
+    </div>
+    <div class="response-box" id="inspect-response">Reset first, then inspect...</div>
+  </div>
+
+  <div class="demo-section">
+    <h3>Step 3 — Fix (submit your fix)</h3>
+    <div class="demo-row">
+      <span class="demo-label">Bug type:</span>
+      <div class="demo-controls">
+        <select id="bugtype-select">
+          <option value="compound_leakage_eval">compound_leakage_eval</option>
+          <option value="compound_shape_device">compound_shape_device</option>
+          <option value="missing_eval_mode">missing_eval_mode</option>
+          <option value="data_leakage">data_leakage</option>
+          <option value="gradient_not_zeroed">gradient_not_zeroed</option>
+          <option value="wrong_device">wrong_device</option>
+          <option value="training_collapse">training_collapse</option>
+          <option value="shape_mismatch">shape_mismatch</option>
+        </select>
+        <button class="action-btn fix-btn" onclick="doFix()">POST /step (fix)</button>
+      </div>
+    </div>
+    <div class="response-box" id="fix-response">Inspect first, then submit fix...</div>
+    <div class="score-display" id="score-display" style="display:none"></div>
+  </div>
+
+  <!-- CURL COMMANDS -->
+  <div class="section-title">📋 Try In Terminal</div>
+  <div class="curl-section">
+
+    <div class="curl-card">
+      <div class="curl-header">
+        <span class="curl-title">Reset — start episode on expert task</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'cmd1')">Copy</button>
+      </div>
+      <div class="curl-code" id="cmd1">curl -s -X POST https://rak2315-ml-debug-env.hf.space/reset \
+  -H "Content-Type: application/json" \
+  -d '{"task_id": "compound_leakage_eval"}' | python -m json.tool</div>
+    </div>
+
+    <div class="curl-card">
+      <div class="curl-header">
+        <span class="curl-title">Inspect — call run_code tool</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'cmd2')">Copy</button>
+      </div>
+      <div class="curl-code" id="cmd2">curl -s -X POST https://rak2315-ml-debug-env.hf.space/step \
+  -H "Content-Type: application/json" \
+  -d '{"action": {"action_type": "inspect", "tool_name": "run_code"}}' | python -m json.tool</div>
+    </div>
+
+    <div class="curl-card">
+      <div class="curl-header">
+        <span class="curl-title">Inspect — call inspect_gradients tool</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'cmd3')">Copy</button>
+      </div>
+      <div class="curl-code" id="cmd3">curl -s -X POST https://rak2315-ml-debug-env.hf.space/step \
+  -H "Content-Type: application/json" \
+  -d '{"action": {"action_type": "inspect", "tool_name": "inspect_gradients"}}' | python -m json.tool</div>
+    </div>
+
+    <div class="curl-card">
+      <div class="curl-header">
+        <span class="curl-title">Fix — submit a fix attempt</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'cmd4')">Copy</button>
+      </div>
+      <div class="curl-code" id="cmd4">curl -s -X POST https://rak2315-ml-debug-env.hf.space/step \
+  -H "Content-Type: application/json" \
+  -d '{"action": {"action_type": "fix", "bug_type": "compound_leakage_eval", "diagnosis": "Two bugs: data normalized before split (leakage) and model.eval() missing during evaluation", "fixed_code": "# complete fixed script here"}}' | python -m json.tool</div>
+    </div>
+
+    <div class="curl-card">
+      <div class="curl-header">
+        <span class="curl-title">Health check</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'cmd5')">Copy</button>
+      </div>
+      <div class="curl-code" id="cmd5">curl https://rak2315-ml-debug-env.hf.space/health</div>
+    </div>
+
+    <div class="curl-card">
+      <div class="curl-header">
+        <span class="curl-title">List all 8 tasks</span>
+        <button class="copy-btn" onclick="copyCmd(this, 'cmd6')">Copy</button>
+      </div>
+      <div class="curl-code" id="cmd6">curl https://rak2315-ml-debug-env.hf.space/tasks | python -m json.tool</div>
+    </div>
+
+  </div>
+
+  <!-- TRAINING RESULTS -->
+  <div class="section-title">📈 Training Results — GRPO on Qwen2.5-1.5B</div>
+  <div class="curve-section">
+    <p style="color:#94a3b8;font-size:13px;margin-bottom:8px;">Run 1 exposed grader bugs — fixed them. Run 2 showed improvement. The environment improved itself.</p>
+    <img src="https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_t4_200steps.png.png" alt="Reward Curve" onerror="this.style.display='none'">
+    <div class="curve-stats">
+      <div class="stat"><div class="stat-val">0.024</div><div class="stat-lbl">Initial reward</div></div>
+      <div class="stat"><div class="stat-val">→</div><div class="stat-lbl" style="padding-top:8px">200 steps · T4</div></div>
+      <div class="stat"><div class="stat-val">0.190</div><div class="stat-lbl">Final reward</div></div>
+      <div class="stat"><div class="stat-val">+0.166</div><div class="stat-lbl">Improvement</div></div>
+    </div>
+  </div>
+
+  <!-- 8 TASKS -->
+  <div class="section-title">🎯 8 Tasks — Easy to Expert</div>
   <div class="tasks-grid">
     <div class="task-card">
-      <div class="task-header">
-        <span class="task-id">shape_mismatch</span>
-        <span class="difficulty easy">Easy</span>
-      </div>
+      <div class="task-top"><span class="task-id">shape_mismatch</span><span class="diff easy">Easy</span></div>
       <div class="task-desc">nn.Linear input dim wrong → explicit RuntimeError crash on first forward pass.</div>
     </div>
     <div class="task-card">
-      <div class="task-header">
-        <span class="task-id">training_collapse</span>
-        <span class="difficulty medium">Medium</span>
-      </div>
-      <div class="task-desc">Bad learning rate → NaN loss, or wrong loss function → flat plateau. No crash.</div>
+      <div class="task-top"><span class="task-id">training_collapse</span><span class="diff medium">Medium</span></div>
+      <div class="task-desc">Bad LR → NaN loss, or wrong loss fn → flat plateau. No crash.</div>
     </div>
     <div class="task-card">
-      <div class="task-header">
-        <span class="task-id">wrong_device</span>
-        <span class="difficulty medium">Medium</span>
-      </div>
+      <div class="task-top"><span class="task-id">wrong_device</span><span class="diff medium">Medium</span></div>
       <div class="task-desc">Model on GPU, data on CPU → device mismatch crash on first forward pass.</div>
     </div>
     <div class="task-card">
-      <div class="task-header">
-        <span class="task-id">gradient_not_zeroed</span>
-        <span class="difficulty medium-hard">Medium-Hard</span>
-      </div>
+      <div class="task-top"><span class="task-id">gradient_not_zeroed</span><span class="diff medium-hard">Medium-Hard</span></div>
       <div class="task-desc">Missing zero_grad() → gradients accumulate → loss explodes silently to NaN.</div>
     </div>
     <div class="task-card">
-      <div class="task-header">
-        <span class="task-id">data_leakage</span>
-        <span class="difficulty hard">Hard</span>
-      </div>
-      <div class="task-desc">Normalized before train/test split → 96% accuracy that can't be trusted.</div>
+      <div class="task-top"><span class="task-id">data_leakage</span><span class="diff hard">Hard</span></div>
+      <div class="task-desc">Normalized before split → 96% accuracy that can't be trusted. No crash.</div>
     </div>
     <div class="task-card">
-      <div class="task-header">
-        <span class="task-id">missing_eval_mode</span>
-        <span class="difficulty hard">Hard</span>
-      </div>
-      <div class="task-desc">No model.eval() → Dropout active during evaluation → non-deterministic metrics.</div>
+      <div class="task-top"><span class="task-id">missing_eval_mode</span><span class="diff hard">Hard</span></div>
+      <div class="task-desc">No model.eval() → Dropout active during eval → non-deterministic metrics.</div>
     </div>
     <div class="task-card">
-      <div class="task-header">
-        <span class="task-id">compound_shape_device</span>
-        <span class="difficulty medium-hard">Medium-Hard</span>
-      </div>
-      <div class="task-desc">TWO bugs: shape mismatch + device mismatch. Both must be fixed.</div>
+      <div class="task-top"><span class="task-id">compound_shape_device</span><span class="diff medium-hard">Medium-Hard</span></div>
+      <div class="task-desc">TWO bugs: shape mismatch + device mismatch. Both must be fixed for 0.99.</div>
       <span class="compound-tag">2 bugs</span>
     </div>
     <div class="task-card">
-      <div class="task-header">
-        <span class="task-id">compound_leakage_eval</span>
-        <span class="difficulty expert">Expert</span>
-      </div>
-      <div class="task-desc">TWO silent bugs: data leakage + missing eval mode. No crash. Both required for full score.</div>
+      <div class="task-top"><span class="task-id">compound_leakage_eval</span><span class="diff expert">Expert</span></div>
+      <div class="task-desc">TWO silent bugs: data leakage + missing eval mode. No crash. Frontier models score 0.</div>
       <span class="compound-tag">2 bugs</span>
     </div>
   </div>
 
-  <div class="section-title">Scoring Ladder</div>
+  <!-- SCORING -->
+  <div class="section-title">🏆 Scoring Ladder</div>
   <div class="scoring">
-    <div class="score-row">
-      <span class="score-val">0.01</span>
-      <div class="score-bar-wrap"><div class="score-bar" style="width:1%"></div></div>
-      <span class="score-label">Wrong bug type identified</span>
-    </div>
-    <div class="score-row">
-      <span class="score-val">0.20</span>
-      <div class="score-bar-wrap"><div class="score-bar" style="width:20%"></div></div>
-      <span class="score-label">Right type, fixed code crashes</span>
-    </div>
-    <div class="score-row">
-      <span class="score-val">0.40</span>
-      <div class="score-bar-wrap"><div class="score-bar" style="width:40%"></div></div>
-      <span class="score-label">Code runs, training incomplete</span>
-    </div>
-    <div class="score-row">
-      <span class="score-val">0.60</span>
-      <div class="score-bar-wrap"><div class="score-bar" style="width:60%"></div></div>
-      <span class="score-label">Training completes, root cause not fixed</span>
-    </div>
-    <div class="score-row">
-      <span class="score-val">0.80</span>
-      <div class="score-bar-wrap"><div class="score-bar" style="width:80%"></div></div>
-      <span class="score-label">Root cause fixed, success signal missing</span>
-    </div>
-    <div class="score-row">
-      <span class="score-val">0.99</span>
-      <div class="score-bar-wrap"><div class="score-bar" style="width:99%"></div></div>
-      <span class="score-label">Perfect fix ✅ + efficiency bonus up to ×1.2</span>
-    </div>
+    <div class="score-row"><span class="score-val">0.01</span><div class="score-bar-w"><div class="score-bar" style="width:1%"></div></div><span class="score-lbl">Wrong bug type identified</span></div>
+    <div class="score-row"><span class="score-val">0.20</span><div class="score-bar-w"><div class="score-bar" style="width:20%"></div></div><span class="score-lbl">Right type, fixed code crashes</span></div>
+    <div class="score-row"><span class="score-val">0.40</span><div class="score-bar-w"><div class="score-bar" style="width:40%"></div></div><span class="score-lbl">Code runs, training incomplete</span></div>
+    <div class="score-row"><span class="score-val">0.60</span><div class="score-bar-w"><div class="score-bar" style="width:60%"></div></div><span class="score-lbl">Training completes, root cause not fixed</span></div>
+    <div class="score-row"><span class="score-val">0.80</span><div class="score-bar-w"><div class="score-bar" style="width:80%"></div></div><span class="score-lbl">Root cause fixed, success signal missing</span></div>
+    <div class="score-row"><span class="score-val">0.99</span><div class="score-bar-w"><div class="score-bar" style="width:99%"></div></div><span class="score-lbl">Perfect fix ✅ + efficiency bonus ×1.2</span></div>
   </div>
 
-  <div class="tools-section">
-    <div class="section-title">Diagnostic Tools</div>
-    <div class="tools-grid">
-      <div class="tool-card">
-        <div class="tool-name">run_code</div>
-        <div class="tool-desc">Runs the buggy script in a subprocess. Returns stdout + stderr.</div>
-      </div>
-      <div class="tool-card">
-        <div class="tool-name">get_traceback</div>
-        <div class="tool-desc">Returns the full Python traceback if code crashed.</div>
-      </div>
-      <div class="tool-card">
-        <div class="tool-name">inspect_gradients</div>
-        <div class="tool-desc">Injects gradient norm logging. Runs one batch. Returns per-layer norms.</div>
-      </div>
-      <div class="tool-card">
-        <div class="tool-name">print_shapes</div>
-        <div class="tool-desc">Injects forward hooks. Returns tensor shapes at each layer.</div>
-      </div>
-      <div class="tool-card">
-        <div class="tool-name">view_source</div>
-        <div class="tool-desc">Reveals the full buggy source code. Costs 1 of 5 steps.</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="api-section">
-    <div class="section-title">API Endpoints</div>
-    <div class="endpoint-list">
-      <div class="endpoint"><span class="method post">POST</span><span class="path">/reset</span><span class="ep-desc">Start episode — returns alert + tools, no code</span></div>
-      <div class="endpoint"><span class="method post">POST</span><span class="path">/step</span><span class="ep-desc">inspect action (tool call) or fix action (submit fix)</span></div>
-      <div class="endpoint"><span class="method get">GET</span><span class="path">/state</span><span class="ep-desc">Current episode state, tools used, best score</span></div>
-      <div class="endpoint"><span class="method get">GET</span><span class="path">/tasks</span><span class="ep-desc">All 8 tasks with descriptions and action schema</span></div>
-      <div class="endpoint"><span class="method post">POST</span><span class="path">/grader</span><span class="ep-desc">Score a fix directly without running a full episode</span></div>
-      <div class="endpoint"><span class="method get">GET</span><span class="path">/baseline</span><span class="ep-desc">Run built-in LLM agent on all 8 tasks</span></div>
-      <div class="endpoint"><span class="method get">GET</span><span class="path">/health</span><span class="ep-desc">{"status": "healthy"}</span></div>
-      <div class="endpoint"><span class="method ws">WS</span><span class="path">/ws</span><span class="ep-desc">Persistent WebSocket session</span></div>
-      <div class="endpoint"><span class="method get">GET</span><span class="path">/docs</span><span class="ep-desc">Interactive Swagger UI</span></div>
-    </div>
-  </div>
-
-  <div class="try-section">
-    <h3>Quick Start</h3>
-    <div class="code-block">import asyncio
-from ml_debug_env import MlDebugEnvClient, DebugAction
-
-async def main():
-    async with MlDebugEnvClient(base_url="https://rak2315-ml-debug-env.hf.space") as env:
-        # Reset — agent gets only a minimal alert
-        result = await env.reset()
-        obs = result.observation
-        print(f"Alert: {obs.alert}")
-        print(f"Tools: {obs.available_tools}")
-        print(f"Budget: {obs.step_budget} steps")
-
-        # Inspect first — gather evidence
-        result = await env.step(DebugAction(
-            action_type="inspect",
-            tool_name="run_code"
-        ))
-        print(f"Tool result: {result.observation.tool_result[:200]}")
-
-        # Submit fix
-        result = await env.step(DebugAction(
-            action_type="fix",
-            bug_type="shape_mismatch",
-            diagnosis="Encoder outputs 256 but classifier expects 32",
-            fixed_code="... complete fixed script ..."
-        ))
-        print(f"Score: {result.observation.grader_score}")
-
-asyncio.run(main())</div>
+  <!-- ENDPOINTS -->
+  <div class="section-title">🌐 API Endpoints</div>
+  <div class="endpoints">
+    <div class="ep"><span class="method post">POST</span><span class="path">/reset</span><span class="ep-desc">Start episode — alert + tools only, no code</span></div>
+    <div class="ep"><span class="method post">POST</span><span class="path">/step</span><span class="ep-desc">inspect action (tool call) or fix action</span></div>
+    <div class="ep"><span class="method get">GET</span><span class="path">/state</span><span class="ep-desc">Episode state, tools used, best score</span></div>
+    <div class="ep"><span class="method get">GET</span><span class="path">/tasks</span><span class="ep-desc">All 8 tasks with descriptions + action schema</span></div>
+    <div class="ep"><span class="method post">POST</span><span class="path">/grader</span><span class="ep-desc">Score a fix directly without a full episode</span></div>
+    <div class="ep"><span class="method get">GET</span><span class="path">/baseline</span><span class="ep-desc">Run built-in LLM agent on all 8 tasks</span></div>
+    <div class="ep"><span class="method get">GET</span><span class="path">/health</span><span class="ep-desc">{"status": "healthy"}</span></div>
+    <div class="ep"><span class="method get">GET</span><span class="path">/docs</span><span class="ep-desc">Swagger UI</span></div>
+    <div class="ep"><span class="method ws">WS</span><span class="path">/ws</span><span class="ep-desc">Persistent WebSocket session</span></div>
   </div>
 
 </div>
 
 <div class="footer">
   <p>ML Debug Env · <a href="https://github.com/RAK2315/ml-debug-env">GitHub</a> · <a href="/docs">API Docs</a> · <a href="https://huggingface.co/rak2315/ml-debug-env-blog">Blog</a></p>
-  <p style="margin-top:8px;">Built for Meta × PyTorch × Scaler OpenEnv Hackathon — April 2026</p>
+  <p style="margin-top:6px;">Meta × PyTorch × Scaler OpenEnv Hackathon — April 2026</p>
 </div>
+
+<script>
+const BASE = 'https://rak2315-ml-debug-env.hf.space';
+let sessionId = null;
+
+function setResponse(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'response-box' + (type ? ' ' + type : '');
+}
+
+async function doReset() {
+  const taskId = document.getElementById('task-select').value;
+  document.getElementById('alert-msg').textContent = 'Resetting...';
+  setResponse('reset-response', 'Calling /reset...', '');
+  document.getElementById('score-display').style.display = 'none';
+
+  try {
+    const res = await fetch(`${BASE}/reset`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({task_id: taskId})
+    });
+    const data = await res.json();
+    sessionId = data.observation?.episode_id || data.episode_id || null;
+    const alert = data.observation?.alert || data.alert || 'No alert in response';
+    document.getElementById('alert-msg').textContent = `"${alert}"`;
+    setResponse('reset-response', JSON.stringify(data, null, 2), 'success');
+    setResponse('inspect-response', 'Episode started. Now call a tool...', '');
+    setResponse('fix-response', 'Inspect first, then submit fix...', '');
+  } catch(e) {
+    setResponse('reset-response', `Error: ${e.message}`, 'error');
+  }
+}
+
+async function doInspect() {
+  const tool = document.getElementById('tool-select').value;
+  setResponse('inspect-response', `Calling inspect with tool: ${tool}...`, '');
+
+  try {
+    const res = await fetch(`${BASE}/step`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: {action_type: 'inspect', tool_name: tool}})
+    });
+    const data = await res.json();
+    const toolResult = data.observation?.tool_result || data.tool_result || JSON.stringify(data);
+    setResponse('inspect-response', toolResult, 'success');
+  } catch(e) {
+    setResponse('inspect-response', `Error: ${e.message}`, 'error');
+  }
+}
+
+async function doFix() {
+  const bugType = document.getElementById('bugtype-select').value;
+  setResponse('fix-response', 'Submitting fix...', '');
+  document.getElementById('score-display').style.display = 'none';
+
+  try {
+    const res = await fetch(`${BASE}/step`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: {
+        action_type: 'fix',
+        bug_type: bugType,
+        diagnosis: 'Demo fix submission',
+        fixed_code: '# placeholder — real agent submits complete fixed script'
+      }})
+    });
+    const data = await res.json();
+    const score = data.observation?.grader_score ?? data.grader_score ?? null;
+    const feedback = data.observation?.grader_feedback || data.grader_feedback || '';
+    setResponse('fix-response', feedback || JSON.stringify(data, null, 2), score >= 0.9 ? 'success' : '');
+    if (score !== null) {
+      const sd = document.getElementById('score-display');
+      sd.style.display = 'block';
+      sd.textContent = `Score: ${score.toFixed(2)}`;
+      sd.style.color = score >= 0.9 ? '#6ee7b7' : score >= 0.6 ? '#fde68a' : '#fca5a5';
+    }
+  } catch(e) {
+    setResponse('fix-response', `Error: ${e.message}`, 'error');
+  }
+}
+
+function copyCmd(btn, id) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+</script>
 
 </body>
 </html>
