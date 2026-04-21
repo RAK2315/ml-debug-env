@@ -56,14 +56,13 @@ By step 150, something changed. The agent stopped calling `view_source` first. I
 
 ### The Curve
 
-![Reward Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_t4_200steps.png.png)
+**Run 1 (T4, 200 steps):** Grader bugs discovered — reward signal was broken. Agent exposed environment flaws.
 
-**Run 1 (T4, 200 steps):** 0.024 → 0.190 (+0.166 improvement)
+**Run 2 (T4, 200 steps):** Grader fixed → 0.024 → 0.190 (+0.166, +690% improvement)
+![Run 2 Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_run2.png)
 
-**Run 2 (H100, 500 steps — venue):** Full curve with adversarial curriculum. Updated post-hackathon.
-
----
-
+**Run 3 (T4, 200 steps):** Training loop fixed (short-output filter + proper GRPO over all completions) — baseline lifted to 15.2% vs 2.4% in Run 2, showing grader improvements held.
+![Run 3 Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_run3.png)
 ## 🧠 What Makes This Different
 
 Most debugging benchmarks hand the agent the full broken script and ask for a fix. That's not how debugging works.
