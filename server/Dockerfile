@@ -57,4 +57,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 # ── Start server ───────────────────────────────────────────────────────────────
 # Run from /app/server so relative imports within server/ still work
 WORKDIR /app/server
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
