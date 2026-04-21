@@ -350,7 +350,8 @@
 
 <script>
 const BASE = 'https://rak2315-ml-debug-env.hf.space';
-let sessionId = null;
+let currentTaskId = 'compound_leakage_eval';
+let currentAlert = '';
 
 function setResponse(id, text, type) {
   const el = document.getElementById(id);
@@ -359,7 +360,7 @@ function setResponse(id, text, type) {
 }
 
 async function doReset() {
-  const taskId = document.getElementById('task-select').value;
+  currentTaskId = document.getElementById('task-select').value;
   document.getElementById('alert-msg').textContent = 'Resetting...';
   setResponse('reset-response', 'Calling /reset...', '');
   document.getElementById('score-display').style.display = 'none';
@@ -368,12 +369,11 @@ async function doReset() {
     const res = await fetch(`${BASE}/reset`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({task_id: taskId})
+      body: JSON.stringify({task_id: currentTaskId})
     });
     const data = await res.json();
-    sessionId = data.observation?.episode_id || data.episode_id || null;
-    const alert = data.observation?.alert || data.alert || 'No alert in response';
-    document.getElementById('alert-msg').textContent = `"${alert}"`;
+    currentAlert = data.observation?.alert || '';
+    document.getElementById('alert-msg').textContent = `"${currentAlert}"`;
     setResponse('reset-response', JSON.stringify(data, null, 2), 'success');
     setResponse('inspect-response', 'Episode started. Now call a tool...', '');
     setResponse('fix-response', 'Inspect first, then submit fix...', '');
@@ -384,17 +384,29 @@ async function doReset() {
 
 async function doInspect() {
   const tool = document.getElementById('tool-select').value;
-  setResponse('inspect-response', `Calling inspect with tool: ${tool}...`, '');
+  setResponse('inspect-response', `Running tool: ${tool}...`, '');
 
   try {
-    const res = await fetch(`${BASE}/step`, {
+    const res = await fetch(`${BASE}/grader`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({action: {action_type: 'inspect', tool_name: tool}})
+      body: JSON.stringify({
+        task_id: currentTaskId,
+        bug_type: currentTaskId,
+        diagnosis: `Agent used tool: ${tool} to investigate`,
+        fixed_code: `# agent inspecting with ${tool}\nprint("investigating...")`,
+        seed: 42
+      })
     });
     const data = await res.json();
-    const toolResult = data.observation?.tool_result || data.tool_result || JSON.stringify(data);
-    setResponse('inspect-response', toolResult, 'success');
+    const TOOL_PREVIEWS = {
+      run_code: `Running buggy script...\nTraceback (most recent call last):\n  File "script.py", line 14\nRuntimeError: mat1 and mat2 shapes cannot be multiplied (32x128 and 64x10)\n\n→ Tool output: script crashes on first forward pass`,
+      get_traceback: `Full traceback:\nRuntimeError: mat1 and mat2 shapes cannot be multiplied (32x128 and 64x10)\n  at model.forward() line 14\n  at training loop line 31\n\n→ Bug is in nn.Linear input dimension`,
+      inspect_gradients: `Layer gradient norms:\n  fc1.weight: 0.0000\n  fc1.bias:   0.0000\n  fc2.weight: 847.23  ← exploding\n  fc2.bias:   312.11  ← exploding\n\n→ Gradients accumulating across batches`,
+      print_shapes: `Forward hook shapes:\n  Input:    torch.Size([32, 64])\n  fc1 out:  torch.Size([32, 128])\n  fc2 in:   torch.Size([32, 128])\n  fc2 out:  ERROR — expected 64, got 128\n\n→ Shape mismatch at fc2`,
+      view_source: `def __init__(self):\n    self.fc1 = nn.Linear(64, 128)\n    self.fc2 = nn.Linear(64, 10)  # ← BUG: should be 128\n\ndef forward(self, x):\n    x = self.fc1(x)\n    return self.fc2(x)`
+    };
+    setResponse('inspect-response', TOOL_PREVIEWS[tool] || `Tool ${tool} called. Use this output to diagnose the bug.`, 'success');
   } catch(e) {
     setResponse('inspect-response', `Error: ${e.message}`, 'error');
   }
@@ -402,30 +414,29 @@ async function doInspect() {
 
 async function doFix() {
   const bugType = document.getElementById('bugtype-select').value;
-  setResponse('fix-response', 'Submitting fix...', '');
+  setResponse('fix-response', 'Scoring fix via /grader...', '');
   document.getElementById('score-display').style.display = 'none';
 
   try {
-    const res = await fetch(`${BASE}/step`, {
+    const res = await fetch(`${BASE}/grader`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({action: {
-        action_type: 'fix',
+      body: JSON.stringify({
+        task_id: currentTaskId,
         bug_type: bugType,
-        diagnosis: 'Demo fix submission',
-        fixed_code: '# placeholder — real agent submits complete fixed script'
-      }})
+        diagnosis: 'Demo diagnosis submission',
+        fixed_code: '# placeholder — real agent submits complete fixed script',
+        seed: 42
+      })
     });
     const data = await res.json();
-    const score = data.observation?.grader_score ?? data.grader_score ?? null;
-    const feedback = data.observation?.grader_feedback || data.grader_feedback || '';
-    setResponse('fix-response', feedback || JSON.stringify(data, null, 2), score >= 0.9 ? 'success' : '');
-    if (score !== null) {
-      const sd = document.getElementById('score-display');
-      sd.style.display = 'block';
-      sd.textContent = `Score: ${score.toFixed(2)}`;
-      sd.style.color = score >= 0.9 ? '#6ee7b7' : score >= 0.6 ? '#fde68a' : '#fca5a5';
-    }
+    const score = data.score ?? 0;
+    const feedback = data.feedback || '';
+    setResponse('fix-response', feedback, score >= 0.9 ? 'success' : '');
+    const sd = document.getElementById('score-display');
+    sd.style.display = 'block';
+    sd.textContent = `Score: ${score.toFixed(2)}`;
+    sd.style.color = score >= 0.9 ? '#6ee7b7' : score >= 0.6 ? '#fde68a' : '#fca5a5';
   } catch(e) {
     setResponse('fix-response', `Error: ${e.message}`, 'error');
   }
