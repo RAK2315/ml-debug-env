@@ -211,9 +211,7 @@
         <span class="curl-title">Reset — start episode on expert task</span>
         <button class="copy-btn" onclick="copyCmd(this, 'cmd1')">Copy</button>
       </div>
-      <div class="curl-code" id="cmd1">curl -s -X POST https://rak2315-ml-debug-env.hf.space/reset \
-  -H "Content-Type: application/json" \
-  -d '{"task_id": "compound_leakage_eval"}' | python -m json.tool</div>
+      <div class="curl-code" id="cmd1">curl -s -X POST https://rak2315-ml-debug-env.hf.space/reset -H "Content-Type: application/json" -d "{\"task_id\": \"compound_leakage_eval\"}"</div>
     </div>
 
     <div class="curl-card">
@@ -221,9 +219,7 @@
         <span class="curl-title">Inspect — call run_code tool</span>
         <button class="copy-btn" onclick="copyCmd(this, 'cmd2')">Copy</button>
       </div>
-      <div class="curl-code" id="cmd2">curl -s -X POST https://rak2315-ml-debug-env.hf.space/step \
-  -H "Content-Type: application/json" \
-  -d '{"action": {"action_type": "inspect", "tool_name": "run_code"}}' | python -m json.tool</div>
+      <div class="curl-code" id="cmd2">curl -s -X POST https://rak2315-ml-debug-env.hf.space/step -H "Content-Type: application/json" -d "{\"action\": {\"action_type\": \"inspect\", \"tool_name\": \"run_code\"}}"</div>
     </div>
 
     <div class="curl-card">
@@ -231,9 +227,7 @@
         <span class="curl-title">Inspect — call inspect_gradients tool</span>
         <button class="copy-btn" onclick="copyCmd(this, 'cmd3')">Copy</button>
       </div>
-      <div class="curl-code" id="cmd3">curl -s -X POST https://rak2315-ml-debug-env.hf.space/step \
-  -H "Content-Type: application/json" \
-  -d '{"action": {"action_type": "inspect", "tool_name": "inspect_gradients"}}' | python -m json.tool</div>
+      <div class="curl-code" id="cmd3">curl -s -X POST https://rak2315-ml-debug-env.hf.space/step -H "Content-Type: application/json" -d "{\"action\": {\"action_type\": \"inspect\", \"tool_name\": \"inspect_gradients\"}}"</div>
     </div>
 
     <div class="curl-card">
@@ -241,9 +235,7 @@
         <span class="curl-title">Fix — submit a fix attempt</span>
         <button class="copy-btn" onclick="copyCmd(this, 'cmd4')">Copy</button>
       </div>
-      <div class="curl-code" id="cmd4">curl -s -X POST https://rak2315-ml-debug-env.hf.space/step \
-  -H "Content-Type: application/json" \
-  -d '{"action": {"action_type": "fix", "bug_type": "compound_leakage_eval", "diagnosis": "Two bugs: data normalized before split (leakage) and model.eval() missing during evaluation", "fixed_code": "# complete fixed script here"}}' | python -m json.tool</div>
+      <div class="curl-code" id="cmd4">curl -s -X POST https://rak2315-ml-debug-env.hf.space/step -H "Content-Type: application/json" -d "{\"action\": {\"action_type\": \"fix\", \"bug_type\": \"compound_leakage_eval\", \"diagnosis\": \"Two bugs: data normalized before split and model.eval() missing\", \"fixed_code\": \"# placeholder\"}}"</div>
     </div>
 
     <div class="curl-card">
@@ -259,7 +251,7 @@
         <span class="curl-title">List all 8 tasks</span>
         <button class="copy-btn" onclick="copyCmd(this, 'cmd6')">Copy</button>
       </div>
-      <div class="curl-code" id="cmd6">curl https://rak2315-ml-debug-env.hf.space/tasks | python -m json.tool</div>
+      <div class="curl-code" id="cmd6">curl https://rak2315-ml-debug-env.hf.space/tasks</div>
     </div>
 
   </div>
