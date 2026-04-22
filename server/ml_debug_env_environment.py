@@ -30,6 +30,8 @@ from adversarial_scheduler import AdversarialScheduler
 MAX_STEPS = 5
 SUCCESS_THRESHOLD = 0.95
 
+# Module-level session store — shared across all instances
+_SESSION_STORE: dict = {}
 
 def _efficiency_multiplier(steps_used: int, total_steps: int) -> float:
     """
@@ -99,9 +101,9 @@ class MlDebugEnvEnvironment(Environment):
         effective_seed = seed if seed is not None else self._scheduler.next_seed(active_task)
         scenario = get_scenario(active_task, seed=effective_seed)
 
-        self._current_scenario = scenario
-        self._state = DebugState(
-            episode_id=episode_id or str(uuid4()),
+        eid = episode_id or str(uuid4())
+        state = DebugState(
+            episode_id=eid,
             step_count=0,
             task_id=active_task,
             max_steps=MAX_STEPS,
@@ -110,6 +112,12 @@ class MlDebugEnvEnvironment(Environment):
             tools_used=[],
             fix_submitted=False,
         )
+
+        self._current_scenario = scenario
+        self._state = state
+        self._episode_id = eid
+
+        _SESSION_STORE[eid] = {"scenario": scenario, "state": state}
 
         return DebugObservation(
             task_id=active_task,
@@ -136,7 +144,13 @@ class MlDebugEnvEnvironment(Environment):
         **kwargs,
     ) -> DebugObservation:
         if self._current_scenario is None:
-            raise RuntimeError("Call reset() before step().")
+            # Try to recover from session store using most recent session
+            if _SESSION_STORE:
+                latest = list(_SESSION_STORE.values())[-1]
+                self._current_scenario = latest["scenario"]
+                self._state = latest["state"]
+            else:
+                raise RuntimeError("Call reset() before step().")
 
         self._state.step_count += 1
         steps_remaining = MAX_STEPS - self._state.step_count
