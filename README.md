@@ -185,14 +185,14 @@ On top of execution reward, an LLM judge (Groq / llama-3.3-70b) scores the agent
 
 Reward went down. The grader had a bug giving partial credit to wrong fixes. The agent exploited it. We fixed the grader.
 
-![Run 1 Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_run2.png)
+![Run 1 Curve](https://github.com/RAK2315/ml-debug-env/blob/main/images/reward_curve_t4_200steps.png.png)
 *Run 1: reward trending down as agent exploits broken grader*
 
 ### Run 2 — The Breakout
 
 With the grader fixed, the agent had no shortcut. **0.024 → 0.190. 690% improvement in 200 steps on a free T4 GPU.**
 
-![Run 2 Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_run2.png)
+![Run 2 Curve](https://github.com/RAK2315/ml-debug-env/blob/main/images/reward_curve_run2.png)
 *Run 2: 0.024 → 0.190, +690% improvement after grader fix*
 
 ### Run 3 — The Self-Improvement Loop
