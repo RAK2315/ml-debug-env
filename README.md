@@ -185,7 +185,7 @@ On top of execution reward, an LLM judge (Groq / llama-3.3-70b) scores the agent
 
 Reward went down. The grader had a bug giving partial credit to wrong fixes. The agent exploited it. We fixed the grader.
 
-![Run 1 Curve](https://github.com/RAK2315/ml-debug-env/blob/main/images/reward_curve_t4_200steps.png.png)
+![Run 1 Curve](https://github.com/RAK2315/ml-debug-env/blob/main/images/reward_curve.png)
 *Run 1: reward trending down as agent exploits broken grader*
 
 ### Run 2 — The Breakout
