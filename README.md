@@ -165,10 +165,10 @@ The agent decides which tools to call and in what order. That strategy is what i
 │                    │   custom loop · Unsloth · T4 GPU   │          │
 │                    └────────────────────────────────────┘          │
 └─────────────────────────────────────────────────────────────────────┘
-
+````
 
 **Episode flow:** `reset()` → alert only, no code → `inspect` (tool call, costs 1 step) → `fix` (code runs in subprocess, costs 1 step) → reward → GRPO update
-````
+
 
 ## The 8 Tasks
 
