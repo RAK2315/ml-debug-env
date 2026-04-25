@@ -348,6 +348,12 @@ python demo.py
 **Method:** Custom GRPO loop (TRL had dependency conflicts on Colab/Kaggle)
 **Notebook:** [ml_debug_env_grpo_fixed.ipynb](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo_fixed.ipynb)
 
+| | Average Reward |
+|---|---|
+| Untrained baseline (partial obs, blind start) | 0.024 |
+| After GRPO training (200 steps, T4) | 0.190 |
+| **Improvement** | **+690%** |
+
 The training loop connects directly to the live environment. The agent generates fix attempts, the grader runs them in subprocess, rewards flow back into GRPO. No static dataset. GRPO generates 4 completions per prompt, scores all of them, and reinforces whichever scored higher than average — teaching the model what good debugging looks like through comparison, not supervision.
 
 ---
