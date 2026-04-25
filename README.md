@@ -104,6 +104,10 @@ This is what RL is supposed to do — teach a model to behave in ways we didn't 
 
 No source code. No traceback. No hints. The agent must decide what to investigate, in what order, within a 5-step budget.
 
+### Why partial observability matters
+
+Most debugging benchmarks hand the agent the full broken script. That removes the hardest part of real debugging — figuring out *where* to look. By withholding the source code, the agent is forced to develop an investigation strategy. It has to decide: given this one-line alert, what tool do I call first? That decision — and the sequence of decisions — is what gets learned through training. By Run 2, the agent had learned that `run_code` output alone is usually enough to diagnose a crash, and that calling `view_source` wastes a step.
+
 ### The agent's two actions:
 
 **Inspect** — call a diagnostic tool (costs 1 step):
@@ -125,18 +129,19 @@ No source code. No traceback. No hints. The agent must decide what to investigat
 
 | Tool | What it returns |
 |---|---|
-| `run_code` | Runs the buggy script, returns stdout + stderr |
+| `run_code` | Runs the buggy script in subprocess, returns stdout + stderr |
 | `get_traceback` | Full Python traceback if the script crashed |
-| `inspect_gradients` | Per-layer gradient norms after one forward pass |
-| `print_shapes` | Tensor shapes at each layer via forward hooks |
+| `inspect_gradients` | Injects gradient norm logging, returns per-layer norms after one batch |
+| `print_shapes` | Injects forward hooks, returns tensor shapes at each layer |
 | `view_source` | The full buggy source code |
 
-The agent decides which tools to call and in what order. That strategy is what it learns.
+`inspect_gradients` and `print_shapes` are the clever ones — they inject diagnostic code into the buggy script before running it, so the agent gets deep introspection without ever seeing the source. The agent decides which tools to call and in what order. That strategy is what it learns.
 
 ---
 
 ## Architecture
-````
+
+```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        SELF-IMPROVING LOOP                          │
 │                                                                     │
@@ -165,10 +170,11 @@ The agent decides which tools to call and in what order. That strategy is what i
 │                    │   custom loop · Unsloth · T4 GPU   │          │
 │                    └────────────────────────────────────┘          │
 └─────────────────────────────────────────────────────────────────────┘
-````
+```
 
 **Episode flow:** `reset()` → alert only, no code → `inspect` (tool call, costs 1 step) → `fix` (code runs in subprocess, costs 1 step) → reward → GRPO update
 
+---
 
 ## The 8 Tasks
 
@@ -186,6 +192,22 @@ Eight broken PyTorch scripts ranging from a beginner-level crash to an expert-le
 | `compound_leakage_eval` | 🟣 Expert | **Two bugs:** data leakage + missing eval mode | Both silent, no crash |
 
 The compound tasks are the hardest. Fix one bug and miss the other: **0.60**. Fix both: **0.99**.
+
+### What each bug actually means
+
+**shape_mismatch** — PyTorch models are chains of layers where data flows through. Each layer expects a specific input size. `nn.Linear(64, 128)` accepts 64 numbers and outputs 128. If the next layer is `nn.Linear(64, 10)` — it expects 64 but gets 128. Crash on first forward pass.
+
+**training_collapse** — the model trains but never learns. Either learning rate is too high so every update overshoots and loss explodes to NaN, or the wrong loss function is used so the signal is meaningless. No crash — just a flat or diverging loss curve.
+
+**wrong_device** — model is on GPU, data is on CPU. PyTorch cannot do math on tensors that live on different devices. Explicit crash: "Expected all tensors to be on the same device."
+
+**gradient_not_zeroed** — in PyTorch, gradients accumulate by default. Every `loss.backward()` adds new gradients on top of old ones. Without `optimizer.zero_grad()` at the start of each batch, by batch 10 you have 10 batches of gradients stacked. Updates become enormous. Loss explodes to NaN silently — no crash.
+
+**data_leakage** — you normalize your data (subtract mean, divide by std) before splitting into train and test sets. The normalization used test data statistics. Your model appears to get 96% accuracy but it cheated — the test data was already visible during preprocessing. In real deployment it would fail. No crash, just suspiciously good metrics.
+
+**missing_eval_mode** — PyTorch Dropout randomly zeros neurons during training to prevent overfitting. During evaluation you want deterministic results. Without `model.eval()`, Dropout stays active. Run evaluation twice and you get different accuracy each time.
+
+**compound tasks** — two of the above bugs in one script. Both must be fixed. Fix one and miss the other: 0.60. Fix both: 0.99.
 
 ---
 
@@ -208,7 +230,7 @@ Efficiency bonus:
   (capped at 0.99)
 ```
 
-**The grader actually runs the fixed code in a subprocess.** No pattern matching. No string similarity. The code has to work.
+**The grader actually runs the fixed code in a subprocess.** The agent's fixed script is written to a temp file and executed with your actual Python + PyTorch installation. No pattern matching. No string similarity. The code has to work.
 
 On top of execution reward, an LLM judge (Groq / llama-3.3-70b) scores the agent's diagnosis — root cause correctness and mechanistic explanation — adding up to 0.15 reasoning reward.
 
@@ -220,19 +242,19 @@ On top of execution reward, an LLM judge (Groq / llama-3.3-70b) scores the agent
 
 Reward went down. The grader had a bug giving partial credit to wrong fixes. The agent exploited it. We fixed the grader.
 
-![Run 1 Curve](https://github.com/RAK2315/ml-debug-env/blob/main/images/reward_curve.png)
+![Run 1 Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve.png)
 *Run 1: reward trending down as agent exploits broken grader*
 
 ### Run 2 — The Breakout
 
 With the grader fixed, the agent had no shortcut. **0.024 → 0.190. 690% improvement in 200 steps on a free T4 GPU.**
 
-![Run 2 Curve](https://github.com/RAK2315/ml-debug-env/blob/main/images/reward_curve_run2.png)
+![Run 2 Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_run2.png)
 *Run 2: 0.024 → 0.190, +690% improvement after grader fix*
 
 ### Run 3 — The Self-Improvement Loop
 
-Fixed the training loop — added short-output filtering and proper GRPO over all completions. **Baseline at step zero lifted from 2.4% to 15.2%.** The floor raised — proof the grader fixes held.
+Fixed the training loop — added short-output filtering so the model couldn't game reward by outputting garbage JSON, and implemented proper GRPO over all completions instead of just the best one. **Baseline at step zero lifted from 2.4% to 15.2%.** The floor raised — proof the grader fixes held.
 
 ![Run 3 Curve](https://raw.githubusercontent.com/RAK2315/ml-debug-env/main/images/reward_curve_run3.png)
 *Run 3: baseline lifted from 2.4% to 15.2% — training loop fixed*
@@ -247,7 +269,7 @@ These behaviors emerged from reward signal alone — we never explicitly program
 
 - **Investigate before fixing** — agent learned to call `run_code` or `inspect_gradients` before attempting a fix
 - **Tool selection by bug type** — gradient issues → `inspect_gradients` first. Crashes → `get_traceback` first
-- **Avoid `view_source`** — the agent learned that reading the full source costs a step and the traceback alone is usually enough
+- **Avoid `view_source`** — the agent learned that the traceback alone is usually enough and reading full source wastes a step
 - **Efficiency matters** — agent learned to fix in fewer steps to maximize the efficiency bonus
 
 ---
@@ -261,7 +283,7 @@ Tracks per-task scores across episodes. Bug types where the agent scores below 0
 After every fix attempt, a Groq LLM (llama-3.3-70b) evaluates the agent's diagnosis — did it identify the root cause correctly? Did it explain the mechanism? Adds up to 0.15 reasoning reward on top of execution reward.
 
 ### Subprocess Grader
-The fixed code is written to a temp file and executed in a subprocess with a 40-second timeout. AST checks verify structural correctness. Output is parsed for success signals. Absolutely no regex matching or string similarity — the code runs or it doesn't.
+The fixed code is written to a temp file and executed in a subprocess with a 40-second timeout. AST checks verify structural correctness. Output is parsed for success signals — epoch logs, loss values, accuracy numbers. Absolutely no regex matching or string similarity — the code runs or it doesn't.
 
 ---
 
@@ -323,10 +345,10 @@ python demo.py
 ## Training
 
 **Model:** Qwen2.5-1.5B-Instruct + LoRA (4bit, rank 16) via Unsloth
-**Method:** Custom GRPO loop
-**Notebook:** [ml_debug_env_grpo.ipynb](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo.ipynb)
+**Method:** Custom GRPO loop (TRL had dependency conflicts on Colab/Kaggle)
+**Notebook:** [ml_debug_env_grpo_fixed.ipynb](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo_fixed.ipynb)
 
-The training loop connects directly to the live environment. The agent generates fix attempts, the grader runs them in subprocess, rewards flow back into GRPO. No static dataset.
+The training loop connects directly to the live environment. The agent generates fix attempts, the grader runs them in subprocess, rewards flow back into GRPO. No static dataset. GRPO generates 4 completions per prompt, scores all of them, and reinforces whichever scored higher than average — teaching the model what good debugging looks like through comparison, not supervision.
 
 ---
 
@@ -351,7 +373,7 @@ The training loop connects directly to the live environment. The agent generates
 root/
 ├── inference.py               ← Validator entry point
 ├── models.py                  ← DebugAction, DebugObservation, DebugState
-├── ml_debug_env_grpo.ipynb    ← GRPO training notebook
+├── ml_debug_env_grpo_fixed.ipynb  ← GRPO training notebook
 ├── openenv.yaml               ← 8 tasks listed
 ├── Dockerfile                 ← HF Space deployment
 ├── demo.py                    ← Live demo script (2 episodes, easy → expert)
@@ -375,7 +397,7 @@ root/
 | 💻 GitHub | [github.com/RAK2315/ml-debug-env](https://github.com/RAK2315/ml-debug-env) |
 | 📓 Colab Notebook | [ml_debug_env_grpo_fixed.ipynb](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo_fixed.ipynb) |
 | 📝 HF Blog | [huggingface.co/rak2315/ml-debug-env-blog](https://huggingface.co/rak2315/ml-debug-env-blog) |
-| 🎥 YouTube | <!-- ADD YOUTUBE LINK HERE --> |
+| 🎥 YouTube | [youtu.be/TjEavKODTQQ](https://youtu.be/TjEavKODTQQ) |
 
 ---
 
