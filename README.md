@@ -18,7 +18,7 @@ tags:
 
 > **Meta × PyTorch × Scaler OpenEnv Hackathon — April 2026**
 
-[![HF Space](https://img.shields.io/badge/🤗_HF_Space-Live-blue)](https://rak2315-ml-debug-env.hf.space) [![GitHub](https://img.shields.io/badge/GitHub-Repo-black)](https://github.com/RAK2315/ml-debug-env) [![Blog](https://img.shields.io/badge/🤗_Blog-Read-orange)](https://huggingface.co/rak2315/ml-debug-env-blog) [![Notebook](https://img.shields.io/badge/Colab-Training_Notebook-yellow)](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo.ipynb) [![YouTube](https://img.shields.io/badge/YouTube-Video-red)](<!-- ADD YOUTUBE LINK HERE -->)
+[![HF Space](https://img.shields.io/badge/🤗_HF_Space-Live-blue)](https://rak2315-ml-debug-env.hf.space) [![GitHub](https://img.shields.io/badge/GitHub-Repo-black)](https://github.com/RAK2315/ml-debug-env) [![Blog](https://img.shields.io/badge/🤗_Blog-Read-orange)](https://huggingface.co/rak2315/ml-debug-env-blog) [![Notebook](https://img.shields.io/badge/Colab-Training_Notebook-yellow)](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo_fixed.ipynb) [![YouTube](https://img.shields.io/badge/YouTube-Video-red)](https://youtu.be/TjEavKODTQQ)
 
 ---
 
@@ -338,7 +338,7 @@ root/
 |---|---|
 | 🤗 HF Space | [rak2315-ml-debug-env.hf.space](https://rak2315-ml-debug-env.hf.space) |
 | 💻 GitHub | [github.com/RAK2315/ml-debug-env](https://github.com/RAK2315/ml-debug-env) |
-| 📓 Colab Notebook | [ml_debug_env_grpo.ipynb](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo.ipynb) |
+| 📓 Colab Notebook | [ml_debug_env_grpo_fixed.ipynb](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo_fixed.ipynb) |
 | 📝 HF Blog | [huggingface.co/rak2315/ml-debug-env-blog](https://huggingface.co/rak2315/ml-debug-env-blog) |
 | 🎥 YouTube | <!-- ADD YOUTUBE LINK HERE --> |
 
