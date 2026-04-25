@@ -134,6 +134,37 @@ No source code. No traceback. No hints. The agent must decide what to investigat
 The agent decides which tools to call and in what order. That strategy is what it learns.
 
 ---
+## Architecture
+┌─────────────────────────────────────────────────────────────────────┐
+│                        SELF-IMPROVING LOOP                          │
+│                                                                     │
+│  ┌──────────────┐    ┌─────────────┐    ┌──────────────────────┐   │
+│  │  Bug Generator│───►│  Agent      │───►│  Subprocess Grader   │   │
+│  │  8 tasks      │    │  (Qwen2.5   │    │  runs fixed code     │   │
+│  │  3 variants   │    │  1.5B+LoRA) │    │  AST checks          │   │
+│  │  seeded RNG   │    │             │    │  LLM judge           │   │
+│  └──────────────┘    └──────┬──────┘    └──────────┬───────────┘   │
+│                             │                      │               │
+│                             │    alert only        │  reward       │
+│                             │    no code           │  0.01→0.99    │
+│                             ▼                      ▼               │
+│                    ┌────────────────────────────────────┐          │
+│                    │      Adversarial Scheduler         │          │
+│                    │  tracks weak tasks → serves 70%    │          │
+│                    │  with novel seeds → harder over     │          │
+│                    │  time as agent improves            │          │
+│                    └──────────────┬─────────────────────┘          │
+│                                   │                                │
+│                                   ▼                                │
+│                    ┌────────────────────────────────────┐          │
+│                    │         GRPO Training Loop         │          │
+│                    │   Qwen2.5-1.5B + LoRA (4bit r16)   │          │
+│                    │   custom loop · Unsloth · T4 GPU   │          │
+│                    └────────────────────────────────────┘          │
+└─────────────────────────────────────────────────────────────────────┘
+
+**Episode flow:** `reset()` → alert only → `inspect` (tool call, costs 1 step) → `fix` (code runs in subprocess, costs 1 step) → reward → GRPO update
+
 
 ## The 8 Tasks
 
