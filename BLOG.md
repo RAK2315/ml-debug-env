@@ -2,7 +2,7 @@
 
 **Meta × PyTorch × Scaler OpenEnv Hackathon — April 2026**
 
-🎥 [Watch the Demo Video](https://youtu.be/TjEavKODTQQ) | 💻 [GitHub](https://github.com/RAK2315/ml-debug-env) | 🤗 [HF Space](https://rak2315-ml-debug-env.hf.space) | 📓 [Training Notebook](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo_fixed.ipynb)
+🎥 [Watch the Demo Video](https://youtu.be/o1Hw3Yp8NQg) | 💻 [GitHub](https://github.com/RAK2315/ml-debug-env) | 🤗 [HF Space](https://rak2315-ml-debug-env.hf.space) | 📓 [Training Notebook](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo_fixed.ipynb)
 
 ---
 
@@ -193,7 +193,7 @@ Or visit **[rak2315-ml-debug-env.hf.space/ui](https://rak2315-ml-debug-env.hf.sp
 - 🤗 HF Space: [rak2315-ml-debug-env.hf.space](https://rak2315-ml-debug-env.hf.space)
 - 💻 GitHub: [github.com/RAK2315/ml-debug-env](https://github.com/RAK2315/ml-debug-env)
 - 📓 Training Notebook: [ml_debug_env_grpo_fixed.ipynb](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo_fixed.ipynb)
-- 🎥 YouTube: [youtu.be/TjEavKODTQQ](https://youtu.be/TjEavKODTQQ)
+- 🎥 YouTube: [youtu.be/TjEavKODTQQ](https://youtu.be/o1Hw3Yp8NQg)
 
 ---
 
