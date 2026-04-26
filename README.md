@@ -402,7 +402,7 @@ root/
 | 🤗 HF Space | [rak2315-ml-debug-env.hf.space](https://rak2315-ml-debug-env.hf.space) |
 | 💻 GitHub | [github.com/RAK2315/ml-debug-env](https://github.com/RAK2315/ml-debug-env) |
 | 📓 Colab Notebook | [ml_debug_env_grpo_fixed.ipynb](https://github.com/RAK2315/ml-debug-env/blob/main/ml_debug_env_grpo_fixed.ipynb) |
-| 📝 HF Blog | [huggingface.co/rak2315/ml-debug-env-blog](https://huggingface.co/rak2315/ml-debug-env-blog) |
+| 📝 Blog | [BLOG.md](https://huggingface.co/spaces/rak2315/ml-debug-env/blob/main/BLOG.md) |
 | 🎥 YouTube | [youtu.be/TjEavKODTQQ](https://youtu.be/TjEavKODTQQ) |
 
 ---
